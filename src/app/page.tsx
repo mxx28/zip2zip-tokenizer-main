@@ -68,8 +68,15 @@ const FEATURED_METRIC_KEYS = new Set([
   "gpt2_mean_nll",
   "gpt2_bits_per_byte",
 ]);
+const TOKEN_COUNT_METRIC_KEYS = new Set([
+  "base_new_tokens",
+  "theory_new_zip_tokens",
+  "actual_new_zip_tokens",
+]);
 const FEATURED_METRIC_ROWS = METRIC_ROWS.filter((row) => FEATURED_METRIC_KEYS.has(row.key));
-const MAIN_METRIC_ROWS = METRIC_ROWS.filter((row) => !FEATURED_METRIC_KEYS.has(row.key));
+const MAIN_METRIC_ROWS = METRIC_ROWS.filter(
+  (row) => !FEATURED_METRIC_KEYS.has(row.key) && !TOKEN_COUNT_METRIC_KEYS.has(row.key)
+);
 const TOKEN_REPLAY_INTERVAL_MS = 80;
 
 const BASE_COLORS = [
@@ -161,15 +168,6 @@ function hasDisplayableResult(result: DemoExampleResult): boolean {
   );
 }
 
-function countDelta(count: DemoMetricValue, base: DemoMetricValue): string | null {
-  const countNumber = metricAsNumber(count);
-  const baseNumber = metricAsNumber(base);
-
-  if (countNumber === null || baseNumber === null || baseNumber === 0) return null;
-
-  return `${((countNumber / baseNumber - 1) * 100).toFixed(1)}%`;
-}
-
 function optionLabel(example: DemoManifestExample): string {
   return example.display_label ?? [example.id, example.category].filter(Boolean).join(" · ");
 }
@@ -226,7 +224,7 @@ function TextBlock({
       <div className="text-sm font-medium text-muted-foreground">{title}</div>
       <pre
         className={cn(
-          "overflow-auto rounded-lg border bg-muted/35 p-4 whitespace-pre-wrap break-words font-mono text-sm leading-relaxed",
+          "overflow-auto rounded-lg border border-zinc-200 bg-zinc-50/70 p-4 whitespace-pre-wrap break-words font-mono text-sm leading-relaxed",
           bodyClassName
         )}
       >
@@ -234,6 +232,15 @@ function TextBlock({
       </pre>
     </div>
   );
+}
+
+function countDelta(count: DemoMetricValue, base: DemoMetricValue): string | null {
+  const countNumber = metricAsNumber(count);
+  const baseNumber = metricAsNumber(base);
+
+  if (countNumber === null || baseNumber === null || baseNumber === 0) return null;
+
+  return `${((countNumber / baseNumber - 1) * 100).toFixed(1)}%`;
 }
 
 function CountCard({
@@ -249,7 +256,7 @@ function CountCard({
   const deltaNumber = delta ? Number(delta.replace("%", "")) : null;
 
   return (
-    <Card className="rounded-lg py-5">
+    <Card className="rounded-lg border-zinc-200 bg-white py-5 shadow-sm">
       <CardContent className="space-y-3">
         <div className="whitespace-nowrap text-sm text-muted-foreground">{title}</div>
         <div className="flex items-baseline gap-2">
@@ -325,15 +332,15 @@ function TokenPanel({
   const expectedCountNumber = metricAsNumber(expectedCount);
   const countMismatch =
     expectedCountNumber !== null &&
-    shownCount > 0 &&
-    shownCount !== expectedCountNumber;
+    totalCount > 0 &&
+    totalCount !== expectedCountNumber;
   const reconstructionMismatch =
     reconstructionText !== undefined &&
     referenceText !== undefined &&
     reconstructionText !== referenceText;
 
   return (
-    <Card className="rounded-lg py-5">
+    <Card className="rounded-lg border-zinc-200 bg-white py-5 shadow-sm">
       <CardHeader className="pb-0">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2">
@@ -394,7 +401,7 @@ function CodebookPanel({
   entries: DemoCodebookEntry[];
 }) {
   return (
-    <Card className="rounded-lg py-5">
+    <Card className="rounded-lg border-zinc-200 bg-white py-5 shadow-sm">
       <CardHeader className="gap-1 pb-0">
         <CardTitle className="text-base">{title}</CardTitle>
         <CardDescription>
@@ -405,7 +412,7 @@ function CodebookPanel({
         {entries.length ? (
           <div className="max-h-96 space-y-3 overflow-auto pr-1">
             {entries.slice(0, 80).map((entry) => (
-              <div key={entry.id} className="rounded-lg border bg-muted/20 p-3">
+              <div key={entry.id} className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-3">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <Badge variant="secondary">ID {entry.id}</Badge>
                   <span className="text-xs text-muted-foreground">
@@ -416,7 +423,7 @@ function CodebookPanel({
                   <div className="break-all text-muted-foreground">
                     [{entry.base_token_ids.join(", ")}]
                   </div>
-                  <div className="whitespace-pre-wrap rounded-md bg-background p-2">
+                  <div className="whitespace-pre-wrap rounded-md bg-white p-2">
                     {entry.decoded_text || entry.base_token_texts?.join("") || "Missing decoded text"}
                   </div>
                 </div>
@@ -706,12 +713,14 @@ export default function Home() {
   }, [isReplayingTokens, replayTotalCounts, resetTokenReplay]);
 
   return (
-    <main className="min-h-screen bg-background p-6 md:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <main className="min-h-screen bg-zinc-50 p-6 md:p-8">
+      <div className="mx-auto max-w-7xl space-y-7">
+        <header className="flex flex-col gap-5 border-b pb-6 md:flex-row md:items-start md:justify-between">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-3xl font-semibold tracking-normal">Zip2Zip Demonstration</h1>
+              <h1 className="text-4xl font-semibold tracking-normal md:text-5xl">
+                Zip2Zip Demonstration
+              </h1>
               {selectedResult &&
                 statusBadges.map((badge) => (
                   <Badge key={badge.label} variant={badge.variant}>
@@ -723,7 +732,7 @@ export default function Home() {
               Result-driven view for model compression and reconstruction artifacts.
             </p>
           </div>
-          <Button variant="outline" onClick={loadManifest} disabled={isManifestLoading}>
+          <Button variant="outline" className="shadow-sm" onClick={loadManifest} disabled={isManifestLoading}>
             <RefreshCw />
             Reload data
           </Button>
@@ -744,13 +753,13 @@ export default function Home() {
         <section className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.25fr)]">
           <div className="min-h-0">
             <Card
-              className="flex min-h-0 flex-col rounded-lg"
+              className="flex min-h-0 flex-col rounded-lg border-zinc-200 bg-white shadow-sm"
               style={rightColumnHeight ? { height: rightColumnHeight } : undefined}
             >
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <BookOpen className="size-4" />
-                  <CardTitle>Example</CardTitle>
+                  <CardTitle className="text-lg">Example</CardTitle>
                 </div>
                 <CardDescription>Select an example and inspect its prompt/response.</CardDescription>
               </CardHeader>
@@ -791,11 +800,11 @@ export default function Home() {
           </div>
 
           <div ref={rightColumnRef} className="space-y-6">
-            <Card className="rounded-lg">
+            <Card className="rounded-lg border-zinc-200 bg-white shadow-sm">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Database className="size-4" />
-                  <CardTitle>Model</CardTitle>
+                  <CardTitle className="text-lg">Model</CardTitle>
                 </div>
                 <CardDescription>
                   Changing the model switches all response, token, codebook, and metric views.
@@ -836,10 +845,7 @@ export default function Home() {
             {modelLoadError && <MissingData message={modelLoadError} />}
 
             <div className="grid gap-4 md:grid-cols-3">
-              <CountCard
-                title="Original tokens"
-                value={originalCount}
-              />
+              <CountCard title="Original tokens" value={originalCount} />
               <CountCard
                 title="Optimal compressed tokens"
                 value={optimalCount}
@@ -852,21 +858,26 @@ export default function Home() {
               />
             </div>
 
-            <Card className="rounded-lg">
+            <Card className="rounded-lg border-zinc-200 bg-white shadow-sm">
               <CardHeader className="pb-0">
                 <div className="flex items-center gap-2">
                   <Layers className="size-4" />
-                  <CardTitle>Metrics</CardTitle>
+                  <CardTitle className="text-lg">Metrics</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
                 {selectedResult?.metrics ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                       {MAIN_METRIC_ROWS.map((row) => (
-                        <div key={row.key} className="rounded-lg border bg-muted/20 p-3">
-                          <div className="text-xs text-muted-foreground">{row.label}</div>
-                          <div className="mt-1 text-lg font-semibold">
+                        <div
+                          key={row.key}
+                          className="rounded-lg border border-zinc-200 bg-zinc-50/70 p-4"
+                        >
+                          <div className="text-xs font-medium text-muted-foreground">
+                            {row.label}
+                          </div>
+                          <div className="mt-1.5 text-xl font-semibold tracking-normal">
                             {formatMetricValue(selectedResult.metrics?.[row.key], {
                               percent: row.percent,
                             })}
@@ -878,12 +889,12 @@ export default function Home() {
                       {FEATURED_METRIC_ROWS.map((row) => (
                         <div
                           key={row.key}
-                          className="rounded-lg border border-foreground/10 bg-background p-4 shadow-sm"
+                          className="rounded-lg border border-zinc-200 bg-zinc-50/70 p-5 shadow-sm"
                         >
                           <div className="text-xs font-medium uppercase text-muted-foreground">
                             {row.label}
                           </div>
-                          <div className="mt-2 text-2xl font-semibold tracking-normal">
+                          <div className="mt-2 text-3xl font-semibold tracking-normal">
                             {formatMetricValue(selectedResult.metrics?.[row.key], {
                               percent: row.percent,
                             })}
@@ -903,7 +914,7 @@ export default function Home() {
         <section className="space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold tracking-normal">Token And Codebook View</h2>
+              <h2 className="text-2xl font-semibold tracking-normal">Token And Codebook View</h2>
               <p className="text-sm text-muted-foreground">
                 Original, optimal compressed, and real model compressed artifacts.
               </p>

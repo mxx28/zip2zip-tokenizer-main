@@ -165,9 +165,7 @@ export function formatMetricValue(value: DemoMetricValue, options?: { percent?: 
   if (typeof value === "number") {
     if (!Number.isFinite(value)) return "Missing";
     if (options?.percent) return `${(value * 100).toFixed(2)}%`;
-    if (Math.abs(value) >= 100) return value.toFixed(1);
-    if (Math.abs(value) >= 10) return value.toFixed(2);
-    return value.toFixed(4);
+    return value.toFixed(2);
   }
 
   return value;
