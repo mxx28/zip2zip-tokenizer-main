@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Zip2Zip Tokenizer",
-  description: "Visualize the effect of Zip2Zip compression on tokenization.",
+  title: "Zip2Zip Demonstration",
+  description: "Inspect Zip2Zip model compression and reconstruction artifacts.",
 };
 
 export default function RootLayout({

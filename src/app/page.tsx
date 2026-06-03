@@ -1,805 +1,994 @@
 "use client";
 
-import { Card } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BookOpen, Box, Database, Layers, Play, RefreshCw, Square } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { useState, useEffect, useCallback } from "react";
-import { lzwEncode, type CompressionConfig } from "@/lib/utils";
-import { AutoTokenizer, PreTrainedTokenizer } from "@huggingface/transformers";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  codebookForMode,
+  DEMO_MANIFEST_PATH,
+  fetchDemoJson,
+  findExampleResult,
+  formatCount,
+  formatMetricValue,
+  metricAsNumber,
+  resolveDemoDataPath,
+  statusFlag,
+  tokenKind,
+  tokenLabel,
+  type CompressionViewMode,
+  type DemoCodebookEntry,
+  type DemoExampleResult,
+  type DemoManifest,
+  type DemoManifestExample,
+  type DemoMetricValue,
+  type DemoModelManifestEntry,
+  type DemoModelResults,
+  type DemoToken,
+  type DemoTokenizerMetadata,
+} from "@/lib/demo-data";
+import { cn } from "@/lib/utils";
 
-// Base token colors
+const METRIC_ROWS: Array<{
+  key: string;
+  label: string;
+  percent?: boolean;
+}> = [
+  { key: "base_new_tokens", label: "Base new tokens" },
+  { key: "theory_new_zip_tokens", label: "Theory zip tokens" },
+  { key: "actual_new_zip_tokens", label: "Actual zip tokens" },
+  { key: "actual_new_zip_tokens_raw", label: "Raw generated zip tokens" },
+  { key: "actual_bytes_per_zip_token", label: "Actual bytes / zip token" },
+  { key: "theory_bytes_per_zip_token", label: "Theory bytes / zip token" },
+  { key: "compression_efficiency", label: "Compression efficiency", percent: true },
+  { key: "base_token_saving", label: "Base token saving", percent: true },
+  { key: "gpt2_mean_nll", label: "GPT-2 mean NLL" },
+  { key: "gpt2_bits_per_byte", label: "GPT-2 bits / byte" },
+];
+
+const FEATURED_METRIC_KEYS = new Set([
+  "compression_efficiency",
+  "base_token_saving",
+  "gpt2_mean_nll",
+  "gpt2_bits_per_byte",
+]);
+const FEATURED_METRIC_ROWS = METRIC_ROWS.filter((row) => FEATURED_METRIC_KEYS.has(row.key));
+const MAIN_METRIC_ROWS = METRIC_ROWS.filter((row) => !FEATURED_METRIC_KEYS.has(row.key));
+const TOKEN_REPLAY_INTERVAL_MS = 80;
+
 const BASE_COLORS = [
-  "bg-sky-200",
-  "bg-amber-200",
-  "bg-blue-200",
-  "bg-green-200",
-  "bg-orange-200",
-  "bg-cyan-200",
-  "bg-gray-200",
-  "bg-purple-200",
-  "bg-indigo-200",
-  "bg-lime-200",
-  "bg-rose-200",
-  "bg-violet-200",
-  "bg-yellow-200",
-  "bg-emerald-200",
-  "bg-zinc-200",
-  "bg-red-200",
-  "bg-fuchsia-200",
-  "bg-pink-200",
-  "bg-teal-200",
+  "border-sky-200 bg-sky-200 text-sky-950",
+  "border-amber-200 bg-amber-200 text-amber-950",
+  "border-blue-200 bg-blue-200 text-blue-950",
+  "border-green-200 bg-green-200 text-green-950",
+  "border-orange-200 bg-orange-200 text-orange-950",
+  "border-cyan-200 bg-cyan-200 text-cyan-950",
+  "border-gray-200 bg-gray-200 text-gray-950",
+  "border-purple-200 bg-purple-200 text-purple-950",
+  "border-indigo-200 bg-indigo-200 text-indigo-950",
+  "border-lime-200 bg-lime-200 text-lime-950",
+  "border-rose-200 bg-rose-200 text-rose-950",
+  "border-violet-200 bg-violet-200 text-violet-950",
+  "border-yellow-200 bg-yellow-200 text-yellow-950",
+  "border-emerald-200 bg-emerald-200 text-emerald-950",
+  "border-zinc-200 bg-zinc-200 text-zinc-950",
+  "border-red-200 bg-red-200 text-red-950",
+  "border-fuchsia-200 bg-fuchsia-200 text-fuchsia-950",
+  "border-pink-200 bg-pink-200 text-pink-950",
+  "border-teal-200 bg-teal-200 text-teal-950",
 ];
 
-// Hyper-token colors - Flashy versions
 const HYPER_COLORS = [
-  "bg-sky-700 text-white",
-  "bg-amber-700 text-white",
-  "bg-blue-700 text-white",
-  "bg-green-700 text-white",
-  "bg-orange-700 text-white",
-  "bg-cyan-700 text-white",
-  "bg-gray-700 text-white",
-  "bg-purple-700 text-white",
-  "bg-indigo-700 text-white",
-  "bg-lime-700 text-white",
-  "bg-rose-700 text-white",
-  "bg-violet-700 text-white",
-  "bg-yellow-700 text-white",
-  "bg-emerald-700 text-white",
-  "bg-zinc-700 text-white",
-  "bg-red-700 text-white",
-  "bg-fuchsia-700 text-white",
-  "bg-pink-700 text-white",
-  "bg-teal-700 text-white",
+  "border-sky-700 bg-sky-700 text-white",
+  "border-amber-700 bg-amber-700 text-white",
+  "border-blue-700 bg-blue-700 text-white",
+  "border-green-700 bg-green-700 text-white",
+  "border-orange-700 bg-orange-700 text-white",
+  "border-cyan-700 bg-cyan-700 text-white",
+  "border-gray-700 bg-gray-700 text-white",
+  "border-purple-700 bg-purple-700 text-white",
+  "border-indigo-700 bg-indigo-700 text-white",
+  "border-lime-700 bg-lime-700 text-white",
+  "border-rose-700 bg-rose-700 text-white",
+  "border-violet-700 bg-violet-700 text-white",
+  "border-yellow-700 bg-yellow-700 text-white",
+  "border-emerald-700 bg-emerald-700 text-white",
+  "border-zinc-700 bg-zinc-700 text-white",
+  "border-red-700 bg-red-700 text-white",
+  "border-fuchsia-700 bg-fuchsia-700 text-white",
+  "border-pink-700 bg-pink-700 text-white",
+  "border-teal-700 bg-teal-700 text-white",
 ];
 
-const MODELS = [
-  { value: "mlx-community/Meta-Llama-3-8B-Instruct-4bit", label: "Llama-3.1", initialVocabSize: 128256 },
-  { value: "microsoft/Phi-3-mini-4k-instruct", label: "Phi-3", initialVocabSize: 32064 },
-  { value: "swiss-ai/Apertus-8B-2509", label: "Apertus", initialVocabSize: 131072 },
-  { value: "Qwen/Qwen3-4B-Instruct-2507", label: "Qwen3", initialVocabSize: 151936 },
-  { value: "openai/gpt-oss-20b", label: "GPT-OSS", initialVocabSize: 201088 },
-];
-
-const TEXT_EXAMPLES = [
-  { 
-    value: "quick-fox", 
-    label: "Quick Fox",
-    text: "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
-  },
-  {
-    value: "code",
-    label: "Code Example",
-    text: "function fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\nconst result = fibonacci(10);\nconsole.log(result);"
-  },
-  {
-    value: "repetitive",
-    label: "Repetitive Pattern",
-    text: "abc abc abc def def def abc abc def abc abc abc def def abc def abc abc abc abc def def def abc abc abc"
-  }
-];
-
-// Default LZW Compression Configuration
-const DEFAULT_COMPRESSION_CONFIG: CompressionConfig = {
-  initialVocabSize: 128256,
-  maxCodebookSize: 1024,
-  maxSubtokens: 4,
-  disabledIds: new Set([0]),
+type StatusBadge = {
+  label: string;
+  variant: "default" | "secondary" | "destructive" | "outline";
 };
 
-export default function Home() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [tokens, setTokens] = useState<string[]>([]);
-  const [tokenIds, setTokenIds] = useState<number[]>([]);
-  const [configDialogOpen, setConfigDialogOpen] = useState(false);
-  const [codebookDialogOpen, setCodebookDialogOpen] = useState(false);
-  const [compressedIds, setCompressedIds] = useState<number[]>([]);
-  const [selectedExample, setSelectedExample] = useState("quick-fox");
-  const [selectedModel, setSelectedModel] = useState(MODELS[0].value);
-  const [compressedTokens, setCompressedTokens] = useState<string[]>([]);
-  const [tokenizers, setTokenizers] = useState<Record<string, PreTrainedTokenizer>>({});
-  const [text, setText] = useState(TEXT_EXAMPLES.find(ex => ex.value === selectedExample)?.text || "");
-  const [compressionConfig, setCompressionConfig] = useState<CompressionConfig>(DEFAULT_COMPRESSION_CONFIG);
-  const [codebook, setCodebook] = useState<Map<number, number[]>>(new Map());
-  const [tokenCardsLayout, setTokenCardsLayout] = useState<"vertical" | "horizontal">("vertical");
-  
-  // Streaming simulation states
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [originalGenerationTime, setOriginalGenerationTime] = useState<number | null>(null);
-  const [compressedGenerationTime, setCompressedGenerationTime] = useState<number | null>(null);
-  
-  // Hover states for bidirectional highlighting
-  const [hoveredCompressedIndex, setHoveredCompressedIndex] = useState<number | null>(null);
-  
-  // Mapping from compressed token index to original token indices
-  const [compressionMapping, setCompressionMapping] = useState<Map<number, number[]>>(new Map());
-  
-  // Form state for editing config
-  const [formConfig, setFormConfig] = useState({
-    maxCodebookSize: DEFAULT_COMPRESSION_CONFIG.maxCodebookSize.toString(),
-    maxSubtokens: DEFAULT_COMPRESSION_CONFIG.maxSubtokens.toString(),
-  });
+type TokenReplayCounts = {
+  original: number;
+  optimal: number;
+  model: number;
+};
 
-  const loadTokenizer = useCallback(async (modelName: string) => {
-    if (tokenizers[modelName]) {
-      setIsLoading(false);
-      return;
-    }
+type TokenReplayTimes = {
+  original: number | null;
+  optimal: number | null;
+  model: number | null;
+};
 
-    setIsLoading(true);
-    try {
-      const newTokenizer = await AutoTokenizer.from_pretrained(modelName);
+function metric(result: DemoExampleResult | null, key: string): DemoMetricValue {
+  return result?.metrics?.[key];
+}
 
-      setTokenizers((prev) => ({
-        ...prev,
-        [modelName]: newTokenizer,
-      }));
-      setIsLoading(false);
-    } catch (error) {
-      console.error("Error loading tokenizer:", error);
-      setIsLoading(false);
-    }
-  }, [tokenizers]);
+function metricCount(
+  result: DemoExampleResult | null,
+  metricKey: string,
+  fallbackLength?: number
+): DemoMetricValue {
+  return metric(result, metricKey) ?? fallbackLength;
+}
 
-  const handleModelChange = (modelName: string) => {
-    setSelectedModel(modelName);
-    loadTokenizer(modelName);
-  };
+function displayCount(tokens?: DemoToken[], tokenIds?: number[]): number | undefined {
+  return tokens?.length || tokenIds?.length || undefined;
+}
 
-  const handleExampleChange = (exampleValue: string) => {
-    setSelectedExample(exampleValue);
-    const example = TEXT_EXAMPLES.find(ex => ex.value === exampleValue);
-    if (example) {
-      setText(example.text);
-    }
-  };
+function hasDisplayableResult(result: DemoExampleResult): boolean {
+  return Boolean(
+    result.response ||
+      result.original?.tokens?.length ||
+      result.original?.token_ids?.length ||
+      result.optimal?.tokens?.length ||
+      result.optimal?.compressed_token_ids?.length ||
+      result.model_result?.tokens?.length ||
+      result.model_result?.compressed_token_ids?.length
+  );
+}
 
-  const handleTextChange = (newText: string) => {
-    setText(newText);
-    // If text is manually changed, switch to custom
-    const currentExample = TEXT_EXAMPLES.find(ex => ex.value === selectedExample);
-    if (currentExample && newText !== currentExample.text) {
-      setSelectedExample("custom");
-    }
-  };
+function countDelta(count: DemoMetricValue, base: DemoMetricValue): string | null {
+  const countNumber = metricAsNumber(count);
+  const baseNumber = metricAsNumber(base);
 
-  useEffect(() => {
-    loadTokenizer(selectedModel);
-  }, [loadTokenizer, selectedModel]);
+  if (countNumber === null || baseNumber === null || baseNumber === 0) return null;
 
-  // Update compression config when tokenizer changes
-  useEffect(() => {
-    const currentTokenizer = tokenizers[selectedModel];
-    
-    if (!currentTokenizer) return;
+  return `${((countNumber / baseNumber - 1) * 100).toFixed(1)}%`;
+}
 
-    // Get vocab size from tokenizer
-    const vocabSize = currentTokenizer.model?.vocab?.length || 
-                      Object.keys(currentTokenizer.model?.vocab || {}).length ||
-                      DEFAULT_COMPRESSION_CONFIG.initialVocabSize;
+function optionLabel(example: DemoManifestExample): string {
+  return example.display_label ?? [example.id, example.category].filter(Boolean).join(" · ");
+}
 
-    // Get special token IDs
-    const specialTokenIds = new Set<number>();
-    
-    // Access special_tokens object from tokenizer config
-    if (currentTokenizer.special_tokens) {
-      const specialTokens = currentTokenizer.special_tokens;
-      
-      // Iterate through all special token types
-      for (const tokenValue of Object.values(specialTokens)) {
-        if (tokenValue && typeof tokenValue === "object" && "id" in tokenValue) {
-          specialTokenIds.add((tokenValue as any).id);
-        } else if (typeof tokenValue === "number") {
-          specialTokenIds.add(tokenValue);
-        }
-      }
-    }
+function modelLabel(model: DemoModelManifestEntry): string {
+  return model.label || model.slug;
+}
 
-    // If no special tokens found, default to [0] (common padding token)
-    if (specialTokenIds.size === 0) {
-      specialTokenIds.add(0);
-    }
+function getStatusBadges(result: DemoExampleResult | null): StatusBadge[] {
+  if (!result) return [];
 
-    // Update compression config
-    setCompressionConfig(prev => ({
-      ...prev,
-      initialVocabSize: vocabSize,
-      disabledIds: specialTokenIds,
-    }));
-  }, [tokenizers, selectedModel]);
+  const validOutput =
+    result.status?.valid_output ?? result.metrics?.valid_output ?? null;
+  const emptyOrTooShort =
+    result.status?.empty_or_too_short ?? result.metrics?.empty_or_too_short ?? null;
+  const degenerate =
+    result.status?.degenerate_repetition ?? result.metrics?.degenerate_repetition ?? null;
 
-  useEffect(() => {
-    const currentTokenizer = tokenizers[selectedModel];
-    
-    if (!text || isLoading || !currentTokenizer) {
-      setTokens([]);
-      setTokenIds([]);
-      setCompressedIds([]);
-      setOriginalGenerationTime(null);
-      setCompressedGenerationTime(null);
-      return;
-    }
+  return [
+    {
+      label: statusFlag(validOutput) ? "valid" : "invalid",
+      variant: statusFlag(validOutput) ? "secondary" : "outline",
+    },
+    ...(statusFlag(emptyOrTooShort)
+      ? [{ label: "empty / too short", variant: "outline" as const }]
+      : []),
+    ...(statusFlag(degenerate)
+      ? [{ label: "degenerate", variant: "outline" as const }]
+      : []),
+  ];
+}
 
-    try {
-      const ids = currentTokenizer.encode(text);
-      
-      const tokenStrings = ids.map((id: number) => {
-        const decoded = currentTokenizer.decode([id], { skip_special_tokens: false });
-        return decoded;
-      })
-      
-      setTokenIds(ids);
-      setTokens(tokenStrings);
-      setOriginalGenerationTime(null);
-      setCompressedGenerationTime(null);
-    } catch {
-      setTokens([]);
-      setTokenIds([]);
-      setCompressedIds([]);
-      setOriginalGenerationTime(null);
-      setCompressedGenerationTime(null);
-    }
-  }, [text, tokenizers, selectedModel, isLoading]);
+function MissingData({ message }: { message: string }) {
+  return (
+    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+      {message}
+    </div>
+  );
+}
 
-  // Compress token IDs using LZW (skip during streaming)
-  useEffect(() => {
-    const currentTokenizer = tokenizers[selectedModel];
-    
-    // Skip automatic compression during streaming
-    if (isStreaming) return;
-    
-    if (tokenIds.length === 0 || !currentTokenizer) {
-      setCompressedIds([]);
-      setCompressedTokens([]);
-      setCompressionMapping(new Map());
-      setCodebook(new Map());
-      return;
-    }
+function TextBlock({
+  title,
+  text,
+  className,
+  bodyClassName,
+}: {
+  title: string;
+  text?: string;
+  className?: string;
+  bodyClassName?: string;
+}) {
+  return (
+    <div className={cn("space-y-2", className)}>
+      <div className="text-sm font-medium text-muted-foreground">{title}</div>
+      <pre
+        className={cn(
+          "overflow-auto rounded-lg border bg-muted/35 p-4 whitespace-pre-wrap break-words font-mono text-sm leading-relaxed",
+          bodyClassName
+        )}
+      >
+        {text || "Missing"}
+      </pre>
+    </div>
+  );
+}
 
-    try {
-      const { compressedIds, codebook } = lzwEncode(tokenIds, compressionConfig);
-      setCompressedIds(compressedIds);
-      setCodebook(codebook);
-
-      // Build mapping from compressed token index to original token indices
-      const mapping = new Map<number, number[]>();
-      let originalIndex = 0;
-      
-      compressedIds.forEach((compressedId, compressedIndex) => {
-        if (compressedId < compressionConfig.initialVocabSize) {
-          // Base token - maps to single original token
-          mapping.set(compressedIndex, [originalIndex]);
-          originalIndex++;
-        } else {
-          // Compressed token - get subtokens from codebook
-          const subtokens = codebook.get(compressedId);
-          if (subtokens) {
-            const indices: number[] = [];
-            for (let i = 0; i < subtokens.length; i++) {
-              indices.push(originalIndex + i);
-            }
-            mapping.set(compressedIndex, indices);
-            originalIndex += subtokens.length;
-          }
-        }
-      });
-      
-      setCompressionMapping(mapping);
-
-      // Decode compressed IDs to strings
-      const compressedStrings = compressedIds.map((id) => {
-        if (id < compressionConfig.initialVocabSize) {
-          // Base token - decode normally
-          return currentTokenizer.decode([id], { skip_special_tokens: false });
-        } else {
-          // Compressed token - get subtokens from codebook and decode
-          const subtokens = codebook.get(id);
-          if (subtokens) {
-            return currentTokenizer.decode(subtokens, { skip_special_tokens: false });
-          }
-          return `[Unknown:${id}]`;
-        }
-      });
-      
-      setCompressedTokens(compressedStrings);
-    } catch (error) {
-      console.error("Compression error:", error);
-      setCompressedIds([]);
-      setCompressedTokens([]);
-      setCompressionMapping(new Map());
-    }
-  }, [tokenIds, tokenizers, selectedModel, compressionConfig, isStreaming]);
-
-  const handleConfigSave = () => {
-    const newConfig: CompressionConfig = {
-      initialVocabSize: compressionConfig.initialVocabSize, // Keep existing vocab size
-      maxCodebookSize: parseInt(formConfig.maxCodebookSize) || DEFAULT_COMPRESSION_CONFIG.maxCodebookSize,
-      maxSubtokens: parseInt(formConfig.maxSubtokens) || DEFAULT_COMPRESSION_CONFIG.maxSubtokens,
-      disabledIds: compressionConfig.disabledIds,
-    };
-    setCompressionConfig(newConfig);
-    setConfigDialogOpen(false);
-  };
-
-  const handleDialogOpenChange = (open: boolean) => {
-    if (open) {
-      // Reset form to current config when opening
-      setFormConfig({
-        maxCodebookSize: compressionConfig.maxCodebookSize.toString(),
-        maxSubtokens: compressionConfig.maxSubtokens.toString(),
-      });
-    }
-    setConfigDialogOpen(open);
-  };
-
-  const simulateLLMGeneration = useCallback(async () => {
-    const currentTokenizer = tokenizers[selectedModel];
-    if (!currentTokenizer || isStreaming || !text) return;
-
-    setIsStreaming(true);
-    setOriginalGenerationTime(0);
-    setCompressedGenerationTime(0);
-    
-    let shouldContinue = true;
-    const startTime = Date.now();
-    
-    try {
-      // Tokenize and compress the full text upfront
-      const ids = currentTokenizer.encode(text);
-      const tokenStrings = ids.map((id: number) => 
-        currentTokenizer.decode([id], { skip_special_tokens: false })
-      );
-      
-      // Compress the tokens
-      const { compressedIds: fullCompressedIds, codebook } = lzwEncode(ids, compressionConfig);
-      
-      // Build mapping from compressed token index to original token indices
-      const mapping = new Map<number, number[]>();
-      let originalIndex = 0;
-      
-      fullCompressedIds.forEach((compressedId, compressedIndex) => {
-        if (compressedId < compressionConfig.initialVocabSize) {
-          mapping.set(compressedIndex, [originalIndex]);
-          originalIndex++;
-        } else {
-          const subtokens = codebook.get(compressedId);
-          if (subtokens) {
-            const indices: number[] = [];
-            for (let i = 0; i < subtokens.length; i++) {
-              indices.push(originalIndex + i);
-            }
-            mapping.set(compressedIndex, indices);
-            originalIndex += subtokens.length;
-          }
-        }
-      });
-      
-      // Decode compressed tokens to strings
-      const fullCompressedStrings = fullCompressedIds.map((id) => {
-        if (id < compressionConfig.initialVocabSize) {
-          return currentTokenizer.decode([id], { skip_special_tokens: false });
-        } else {
-          const subtokens = codebook.get(id);
-          if (subtokens) {
-            return currentTokenizer.decode(subtokens, { skip_special_tokens: false });
-          }
-          return `[Unknown:${id}]`;
-        }
-      });
-      
-      // Set the full token counts and mapping immediately (before streaming)
-      setTokenIds(ids);
-      setCompressedIds(fullCompressedIds);
-      setCompressionMapping(new Map(mapping));
-      
-      // Clear the display tokens (these will stream in)
-      setTokens([]);
-      setCompressedTokens([]);
-      
-      // Arrays to accumulate streamed tokens for display
-      const streamedTokens: string[] = [];
-      const streamedCompressedTokens: string[] = [];
-      
-      // Track if each stream has finished
-      let compressedFinished = false;
-      let originalFinished = false;
-      
-      // Find the maximum number of iterations needed
-      const maxIterations = Math.max(ids.length, fullCompressedIds.length);
-      
-      // Stream both original and compressed tokens in parallel
-      for (let i = 0; i < maxIterations && shouldContinue; i++) {
-        // Add original token if available
-        if (i < ids.length) {
-          streamedTokens.push(tokenStrings[i]);
-        }
-        
-        // Add compressed token if available
-        if (i < fullCompressedIds.length) {
-          streamedCompressedTokens.push(fullCompressedStrings[i]);
-        }
-        
-        // Update display tokens
-        setTokens([...streamedTokens]);
-        setCompressedTokens([...streamedCompressedTokens]);
-        
-        // Wait 0.1 seconds before next token
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Update generation times after the delay
-        const elapsed = (Date.now() - startTime) / 1000;
-        
-        // Update compressed time and check if finished
-        if (!compressedFinished) {
-          setCompressedGenerationTime(elapsed);
-          if (streamedCompressedTokens.length >= fullCompressedIds.length) {
-            compressedFinished = true;
-          }
-        }
-        
-        // Update original time and check if finished
-        if (!originalFinished) {
-          setOriginalGenerationTime(elapsed);
-          if (streamedTokens.length >= ids.length) {
-            originalFinished = true;
-          }
-        }
-        
-        // Check if we should continue
-        setIsStreaming(current => {
-          shouldContinue = current;
-          return current;
-        });
-      }
-    } catch (error) {
-      console.error("Error during streaming simulation:", error);
-    } finally {
-      setIsStreaming(false);
-    }
-  }, [tokenizers, selectedModel, isStreaming, text, compressionConfig]);
+function CountCard({
+  title,
+  value,
+  baseValue,
+}: {
+  title: string;
+  value: DemoMetricValue;
+  baseValue?: DemoMetricValue;
+}) {
+  const delta = baseValue === undefined ? null : countDelta(value, baseValue);
+  const deltaNumber = delta ? Number(delta.replace("%", "")) : null;
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <h1 className="text-4xl font-bold">Zip2Zip Tokenizer</h1>
-          
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Dialog open={configDialogOpen} onOpenChange={handleDialogOpenChange}>
-              <DialogTrigger asChild>
-                <Button variant="outline">Zip2Zip Config</Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>Compression Configuration</DialogTitle>
-                  <DialogDescription>
-                    Adjust the LZW compression parameters.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="maxCodebookSize">
-                      Max Codebook Size
-                    </Label>
-                    <Input
-                      id="maxCodebookSize"
-                      type="number"
-                      value={formConfig.maxCodebookSize}
-                      onChange={(e) => setFormConfig({ ...formConfig, maxCodebookSize: e.target.value })}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Maximum number of new tokens
-                    </p>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="maxSubtokens">
-                      Max Subtokens
-                    </Label>
-                    <Input
-                      id="maxSubtokens"
-                      type="number"
-                      value={formConfig.maxSubtokens}
-                      onChange={(e) => setFormConfig({ ...formConfig, maxSubtokens: e.target.value })}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Maximum tokens that can be merged into one new token
-                    </p>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-3">
-                  <Button variant="outline" onClick={() => setConfigDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleConfigSave}>Save Changes</Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-            
-            <Select value={selectedModel} onValueChange={handleModelChange}>
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MODELS.map((model) => (
-                  <SelectItem key={model.value} value={model.value}>
-                    {model.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+    <Card className="rounded-lg py-5">
+      <CardContent className="space-y-3">
+        <div className="whitespace-nowrap text-sm text-muted-foreground">{title}</div>
+        <div className="flex items-baseline gap-2">
+          <div className="text-3xl font-semibold tracking-normal">{formatCount(value)}</div>
+          {delta && (
+            <div
+              className={cn(
+                "text-sm font-medium",
+                deltaNumber !== null && deltaNumber < 0 && "text-green-700",
+                deltaNumber !== null && deltaNumber === 0 && "text-muted-foreground",
+                deltaNumber !== null && deltaNumber > 0 && "text-red-700"
+              )}
+            >
+              {delta}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function tokenColorIndex(token: DemoToken): number {
+  return token.source_token_start ?? token.index;
+}
+
+function tokenClass(token: DemoToken, tokenizer?: DemoTokenizerMetadata): string {
+  const kind = tokenKind(token, tokenizer);
+
+  if (kind === "zip") {
+    return HYPER_COLORS[tokenColorIndex(token) % HYPER_COLORS.length];
+  }
+
+  if (kind === "special" || kind === "pad") {
+    return "border-zinc-300 bg-zinc-100 text-zinc-700";
+  }
+
+  return BASE_COLORS[tokenColorIndex(token) % BASE_COLORS.length];
+}
+
+function TokenPanel({
+  title,
+  tokenIds,
+  tokens,
+  tokenizerMetadata,
+  expectedCount,
+  visibleLimit,
+  elapsedSeconds,
+  isReplaying,
+  reconstructionText,
+  referenceText,
+  missingMessage,
+}: {
+  title: string;
+  tokenIds?: number[];
+  tokens?: DemoToken[];
+  tokenizerMetadata?: DemoTokenizerMetadata;
+  expectedCount?: DemoMetricValue;
+  visibleLimit?: number;
+  elapsedSeconds?: number | null;
+  isReplaying?: boolean;
+  reconstructionText?: string;
+  referenceText?: string;
+  missingMessage: string;
+}) {
+  const allTokens = tokens?.length
+    ? tokens
+    : tokenIds?.map((id, index) => ({ index, id }));
+  const visibleTokens =
+    allTokens && visibleLimit !== undefined ? allTokens.slice(0, visibleLimit) : allTokens;
+  const shownCount = visibleTokens?.length ?? 0;
+  const totalCount = allTokens?.length ?? 0;
+  const expectedCountNumber = metricAsNumber(expectedCount);
+  const countMismatch =
+    expectedCountNumber !== null &&
+    shownCount > 0 &&
+    shownCount !== expectedCountNumber;
+  const reconstructionMismatch =
+    reconstructionText !== undefined &&
+    referenceText !== undefined &&
+    reconstructionText !== referenceText;
+
+  return (
+    <Card className="rounded-lg py-5">
+      <CardHeader className="pb-0">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle className="text-base text-muted-foreground">{title}</CardTitle>
+            {countMismatch && <Badge variant="outline">count mismatch</Badge>}
+            {reconstructionMismatch && <Badge variant="outline">reconstruction differs</Badge>}
+          </div>
+          <div className="flex flex-col items-end gap-1 whitespace-nowrap font-mono text-sm text-muted-foreground">
+            <span>
+              {totalCount
+                ? isReplaying && visibleLimit !== undefined
+                  ? `${shownCount}/${totalCount} tokens`
+                  : `${totalCount} tokens`
+                : "Missing"}
+            </span>
+            {elapsedSeconds !== undefined && elapsedSeconds !== null && (
+              <span className="text-xs">{elapsedSeconds.toFixed(2)}s</span>
+            )}
           </div>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="example-select">Text Example</Label>
-              </div>
-              <Select value={selectedExample} onValueChange={handleExampleChange} disabled={isLoading || isStreaming}>
-                <SelectTrigger id="example-select" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TEXT_EXAMPLES.map((example) => (
-                    <SelectItem key={example.value} value={example.value}>
-                      {example.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+      </CardHeader>
+      <CardContent>
+        {visibleTokens?.length ? (
+          <div className="max-h-72 overflow-auto rounded-lg bg-background p-3">
+            <div className="font-mono text-sm leading-7">
+              {visibleTokens.map((token) => (
+                <span
+                  key={`${token.index}-${token.id}`}
+                  title={`index=${token.index}, id=${token.id}`}
+                  className={cn(
+                    "box-decoration-clone px-0.5 py-0.5 whitespace-pre-wrap",
+                    tokenClass(token, tokenizerMetadata)
+                  )}
+                >
+                  {tokenLabel(token)}
+                </span>
+              ))}
             </div>
-            <div>
-              <Textarea
-                value={text}
-                onChange={(e) => handleTextChange(e.target.value)}
-                className="min-h-[300px] font-mono"
-                placeholder="Enter text to tokenize..."
-                disabled={isLoading || isStreaming}
+          </div>
+        ) : (
+          <MissingData message={missingMessage} />
+        )}
+        {reconstructionMismatch && (
+          <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 p-3 text-xs text-orange-900">
+            The exported reconstruction differs from the response text for this result.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CodebookPanel({
+  title,
+  entries,
+}: {
+  title: string;
+  entries: DemoCodebookEntry[];
+}) {
+  return (
+    <Card className="rounded-lg py-5">
+      <CardHeader className="gap-1 pb-0">
+        <CardTitle className="text-base">{title}</CardTitle>
+        <CardDescription>
+          {entries.length ? `${entries.length} entries` : "No codebook metadata"}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {entries.length ? (
+          <div className="max-h-96 space-y-3 overflow-auto pr-1">
+            {entries.slice(0, 80).map((entry) => (
+              <div key={entry.id} className="rounded-lg border bg-muted/20 p-3">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">ID {entry.id}</Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {entry.length ?? entry.base_token_ids.length} base tokens
+                  </span>
+                </div>
+                <div className="space-y-2 font-mono text-xs">
+                  <div className="break-all text-muted-foreground">
+                    [{entry.base_token_ids.join(", ")}]
+                  </div>
+                  <div className="whitespace-pre-wrap rounded-md bg-background p-2">
+                    {entry.decoded_text || entry.base_token_texts?.join("") || "Missing decoded text"}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {entries.length > 80 && (
+              <div className="text-xs text-muted-foreground">
+                Showing first 80 entries. The full codebook remains available in demo-data.
+              </div>
+            )}
+          </div>
+        ) : (
+          <MissingData message="Codebook entries are missing from this result artifact." />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function Home() {
+  const [manifest, setManifest] = useState<DemoManifest | null>(null);
+  const [manifestError, setManifestError] = useState<string | null>(null);
+  const [isManifestLoading, setIsManifestLoading] = useState(true);
+  const [selectedModelSlug, setSelectedModelSlug] = useState("");
+  const [selectedExampleId, setSelectedExampleId] = useState("");
+  const [modelResultsBySlug, setModelResultsBySlug] = useState<Record<string, DemoModelResults>>({});
+  const [modelLoadError, setModelLoadError] = useState<string | null>(null);
+  const [autoSelectedByModel, setAutoSelectedByModel] = useState<Record<string, boolean>>({});
+  const [viewMode, setViewMode] = useState<CompressionViewMode>("optimal");
+  const [rightColumnHeight, setRightColumnHeight] = useState<number | null>(null);
+  const [isReplayingTokens, setIsReplayingTokens] = useState(false);
+  const [tokenReplayCounts, setTokenReplayCounts] = useState<TokenReplayCounts | null>(null);
+  const [tokenReplayTimes, setTokenReplayTimes] = useState<TokenReplayTimes>({
+    original: null,
+    optimal: null,
+    model: null,
+  });
+  const rightColumnRef = useRef<HTMLDivElement>(null);
+
+  const loadManifest = async () => {
+    setIsManifestLoading(true);
+    setManifestError(null);
+
+    try {
+      const nextManifest = await fetchDemoJson<DemoManifest>(DEMO_MANIFEST_PATH);
+      setManifest(nextManifest);
+      setSelectedModelSlug((current) => current || nextManifest.models[0]?.slug || "");
+      setSelectedExampleId((current) => current || nextManifest.examples[0]?.id || "");
+    } catch (error) {
+      setManifest(null);
+      setManifestError(error instanceof Error ? error.message : "Failed to load manifest");
+    } finally {
+      setIsManifestLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadManifest();
+  }, []);
+
+  useEffect(() => {
+    const element = rightColumnRef.current;
+    if (!element) return;
+
+    const updateHeight = () => {
+      if (window.innerWidth < 1024) {
+        setRightColumnHeight(null);
+        return;
+      }
+
+      setRightColumnHeight(element.getBoundingClientRect().height);
+    };
+
+    updateHeight();
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(element);
+    window.addEventListener("resize", updateHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, []);
+
+  const selectedModel = useMemo(() => {
+    return manifest?.models.find((model) => model.slug === selectedModelSlug) ?? null;
+  }, [manifest, selectedModelSlug]);
+
+  useEffect(() => {
+    if (!selectedModel || modelResultsBySlug[selectedModel.slug]) return;
+
+    let isCancelled = false;
+
+    async function loadModelResults(model: DemoModelManifestEntry) {
+      setModelLoadError(null);
+      try {
+        const results = await fetchDemoJson<DemoModelResults>(
+          resolveDemoDataPath(model.results_file)
+        );
+
+        if (!isCancelled) {
+          setModelResultsBySlug((current) => ({
+            ...current,
+            [model.slug]: results,
+          }));
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          setModelLoadError(error instanceof Error ? error.message : "Failed to load model results");
+        }
+      }
+    }
+
+    void loadModelResults(selectedModel);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedModel, modelResultsBySlug]);
+
+  const modelResults = selectedModelSlug ? modelResultsBySlug[selectedModelSlug] ?? null : null;
+  const tokenizer = modelResults?.tokenizer ?? selectedModel?.tokenizer;
+
+  useEffect(() => {
+    if (!selectedModelSlug || !modelResults || autoSelectedByModel[selectedModelSlug]) return;
+
+    const currentResult = findExampleResult(modelResults, selectedExampleId);
+    const firstDisplayableResult = modelResults.examples.find(hasDisplayableResult);
+
+    if (firstDisplayableResult && (!currentResult || !hasDisplayableResult(currentResult))) {
+      setSelectedExampleId(firstDisplayableResult.example_id);
+    }
+
+    setAutoSelectedByModel((current) => ({
+      ...current,
+      [selectedModelSlug]: true,
+    }));
+  }, [autoSelectedByModel, modelResults, selectedExampleId, selectedModelSlug]);
+
+  const exampleOptions = useMemo(() => {
+    const examplesById = new Map<string, DemoManifestExample>();
+
+    manifest?.examples.forEach((example) => examplesById.set(example.id, example));
+    modelResults?.examples.forEach((example) => {
+      if (!examplesById.has(example.example_id)) {
+        examplesById.set(example.example_id, {
+          id: example.example_id,
+          category: example.category,
+          display_label: [example.example_id, example.category].filter(Boolean).join(" · "),
+          prompt: example.prompt,
+        });
+      }
+    });
+
+    return Array.from(examplesById.values());
+  }, [manifest, modelResults]);
+
+  useEffect(() => {
+    if (!selectedExampleId && exampleOptions[0]) {
+      setSelectedExampleId(exampleOptions[0].id);
+    }
+  }, [exampleOptions, selectedExampleId]);
+
+  const selectedManifestExample =
+    exampleOptions.find((example) => example.id === selectedExampleId) ?? null;
+  const selectedResult = findExampleResult(modelResults, selectedExampleId);
+  const originalMetricCount = metricCount(
+    selectedResult,
+    "base_new_tokens",
+    selectedResult?.original?.token_ids?.length
+  );
+  const optimalMetricCount = metricCount(
+    selectedResult,
+    "theory_new_zip_tokens",
+    selectedResult?.optimal?.compressed_token_ids?.length
+  );
+  const modelMetricCount = metricCount(
+    selectedResult,
+    "actual_new_zip_tokens",
+    selectedResult?.model_result?.compressed_token_ids?.length
+  );
+  const originalDisplayCount = displayCount(
+    selectedResult?.original?.tokens,
+    selectedResult?.original?.token_ids
+  );
+  const optimalDisplayCount = displayCount(
+    selectedResult?.optimal?.tokens,
+    selectedResult?.optimal?.compressed_token_ids
+  );
+  const modelDisplayCount = displayCount(
+    selectedResult?.model_result?.tokens,
+    selectedResult?.model_result?.compressed_token_ids
+  );
+  const originalCount = originalDisplayCount ?? originalMetricCount;
+  const optimalCount = optimalDisplayCount ?? optimalMetricCount;
+  const modelCount = modelDisplayCount ?? modelMetricCount;
+  const activeCodebook = codebookForMode(selectedResult, viewMode);
+  const statusBadges = getStatusBadges(selectedResult);
+  const replayTotalCounts = useMemo(
+    () => ({
+      original: originalDisplayCount ?? 0,
+      optimal: optimalDisplayCount ?? 0,
+      model: modelDisplayCount ?? 0,
+    }),
+    [modelDisplayCount, optimalDisplayCount, originalDisplayCount]
+  );
+  const hasReplayableTokens =
+    replayTotalCounts.original > 0 ||
+    replayTotalCounts.optimal > 0 ||
+    replayTotalCounts.model > 0;
+
+  const resetTokenReplay = useCallback(() => {
+    setIsReplayingTokens(false);
+    setTokenReplayCounts(null);
+    setTokenReplayTimes({
+      original: null,
+      optimal: null,
+      model: null,
+    });
+  }, []);
+
+  useEffect(() => {
+    resetTokenReplay();
+  }, [resetTokenReplay, selectedExampleId, selectedModelSlug]);
+
+  const startTokenReplay = useCallback(() => {
+    if (!hasReplayableTokens) return;
+
+    setTokenReplayCounts({ original: 0, optimal: 0, model: 0 });
+    setTokenReplayTimes({ original: 0, optimal: 0, model: 0 });
+    setIsReplayingTokens(true);
+  }, [hasReplayableTokens]);
+
+  useEffect(() => {
+    if (!isReplayingTokens) return;
+
+    const maxCount = Math.max(
+      replayTotalCounts.original,
+      replayTotalCounts.optimal,
+      replayTotalCounts.model
+    );
+
+    if (maxCount === 0) {
+      resetTokenReplay();
+      return;
+    }
+
+    const replayStart = performance.now();
+
+    const updateReplay = () => {
+      const elapsedSeconds = (performance.now() - replayStart) / 1000;
+      const nextCount = Math.min(
+        maxCount,
+        Math.floor((elapsedSeconds * 1000) / TOKEN_REPLAY_INTERVAL_MS) + 1
+      );
+
+      setTokenReplayCounts({
+        original: Math.min(nextCount, replayTotalCounts.original),
+        optimal: Math.min(nextCount, replayTotalCounts.optimal),
+        model: Math.min(nextCount, replayTotalCounts.model),
+      });
+      setTokenReplayTimes({
+        original:
+          replayTotalCounts.original > 0
+            ? Math.min(elapsedSeconds, (replayTotalCounts.original * TOKEN_REPLAY_INTERVAL_MS) / 1000)
+            : null,
+        optimal:
+          replayTotalCounts.optimal > 0
+            ? Math.min(elapsedSeconds, (replayTotalCounts.optimal * TOKEN_REPLAY_INTERVAL_MS) / 1000)
+            : null,
+        model:
+          replayTotalCounts.model > 0
+            ? Math.min(elapsedSeconds, (replayTotalCounts.model * TOKEN_REPLAY_INTERVAL_MS) / 1000)
+            : null,
+      });
+
+      if (nextCount >= maxCount) {
+        setIsReplayingTokens(false);
+      }
+    };
+
+    updateReplay();
+    const intervalId = window.setInterval(updateReplay, TOKEN_REPLAY_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [isReplayingTokens, replayTotalCounts, resetTokenReplay]);
+
+  return (
+    <main className="min-h-screen bg-background p-6 md:p-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-3xl font-semibold tracking-normal">Zip2Zip Demonstration</h1>
+              {selectedResult &&
+                statusBadges.map((badge) => (
+                  <Badge key={badge.label} variant={badge.variant}>
+                    {badge.label}
+                  </Badge>
+                ))}
+            </div>
+            <p className="max-w-3xl text-sm text-muted-foreground">
+              Result-driven view for model compression and reconstruction artifacts.
+            </p>
+          </div>
+          <Button variant="outline" onClick={loadManifest} disabled={isManifestLoading}>
+            <RefreshCw />
+            Reload data
+          </Button>
+        </header>
+
+        {manifestError && (
+          <MissingData
+            message={`Could not load /public${DEMO_MANIFEST_PATH}: ${manifestError}`}
+          />
+        )}
+
+        {!manifestError && !isManifestLoading && manifest?.models.length === 0 && (
+          <MissingData
+            message="Waiting for complete demo-data. Add manifest.json and model result JSON files under public/demo-data."
+          />
+        )}
+
+        <section className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.25fr)]">
+          <div className="min-h-0">
+            <Card
+              className="flex min-h-0 flex-col rounded-lg"
+              style={rightColumnHeight ? { height: rightColumnHeight } : undefined}
+            >
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <BookOpen className="size-4" />
+                  <CardTitle>Example</CardTitle>
+                </div>
+                <CardDescription>Select an example and inspect its prompt/response.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex min-h-0 flex-1 flex-col gap-5">
+                <div className="space-y-2">
+                  <Label htmlFor="example-select">Example ID</Label>
+                  {exampleOptions.length ? (
+                    <Select value={selectedExampleId} onValueChange={setSelectedExampleId}>
+                      <SelectTrigger id="example-select" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {exampleOptions.map((example) => (
+                          <SelectItem key={example.id} value={example.id}>
+                            {optionLabel(example)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <MissingData message="No examples available in manifest or loaded model results." />
+                  )}
+                </div>
+
+                <TextBlock
+                  title="Prompt"
+                  text={selectedResult?.prompt ?? selectedManifestExample?.prompt}
+                  bodyClassName="max-h-40"
+                />
+                <TextBlock
+                  title="Response"
+                  text={selectedResult?.response}
+                  className="flex min-h-0 flex-1 flex-col"
+                  bodyClassName="min-h-0 max-h-none flex-1"
+                />
+              </CardContent>
+            </Card>
+          </div>
+
+          <div ref={rightColumnRef} className="space-y-6">
+            <Card className="rounded-lg">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Database className="size-4" />
+                  <CardTitle>Model</CardTitle>
+                </div>
+                <CardDescription>
+                  Changing the model switches all response, token, codebook, and metric views.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                <div className="space-y-2">
+                  <Label htmlFor="model-select">Trained model</Label>
+                  {manifest?.models.length ? (
+                    <Select value={selectedModelSlug} onValueChange={setSelectedModelSlug}>
+                      <SelectTrigger id="model-select" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {manifest.models.map((model) => (
+                          <SelectItem key={model.slug} value={model.slug}>
+                            {modelLabel(model)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <MissingData message="No model entries found in manifest.json." />
+                  )}
+                </div>
+                <div className="rounded-lg border bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
+                  <div className="font-medium text-foreground">Tokenizer</div>
+                  <div className="mt-1 max-w-72 truncate">{tokenizer?.name ?? "Missing"}</div>
+                  {tokenizer && (
+                    <div className="mt-1">
+                      zip start {tokenizer.zip_token_start}; base vocab {tokenizer.base_vocab_size}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {modelLoadError && <MissingData message={modelLoadError} />}
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <CountCard
+                title="Original tokens"
+                value={originalCount}
+              />
+              <CountCard
+                title="Optimal compressed tokens"
+                value={optimalCount}
+                baseValue={originalCount}
+              />
+              <CountCard
+                title="Model compressed tokens"
+                value={modelCount}
+                baseValue={originalCount}
               />
             </div>
-            <div className="flex gap-3">
-              <Button 
-                onClick={simulateLLMGeneration}
-                disabled={isLoading || isStreaming || !text}
-                variant="default"
-              >
-                {isStreaming ? "Streaming..." : "Simulate LLM Generation"}
-              </Button>
-              {isStreaming && (
-                <Button 
-                  onClick={() => setIsStreaming(false)}
-                  variant="outline"
-                >
-                  Stop
-                </Button>
-              )}
-            </div>
-          </div>
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <Card className="p-6">
-                <div className="text-sm text-muted-foreground mb-1">Original tokens</div>
-                <div className="text-3xl font-bold">{tokenIds.length}</div>
-              </Card>
-              <Card className="p-6">
-                <div className="text-sm text-muted-foreground mb-1">Compressed tokens</div>
-                <div className="flex items-baseline gap-2">
-                  <div className="text-3xl font-bold">{compressedIds.length}</div>
-                  {tokenIds.length > 0 && compressedIds.length > 0 && (
-                    <div className={`text-lg font-semibold ${
-                      compressedIds.length / tokenIds.length < 1 
-                        ? "text-green-700" 
-                        : compressedIds.length / tokenIds.length === 1
-                        ? "text-orange-700"
-                        : "text-red-700"
-                    }`}>
-                      ({((compressedIds.length / tokenIds.length - 1) * 100).toFixed(1)}%)
-                    </div>
-                  )}
+
+            <Card className="rounded-lg">
+              <CardHeader className="pb-0">
+                <div className="flex items-center gap-2">
+                  <Layers className="size-4" />
+                  <CardTitle>Metrics</CardTitle>
                 </div>
-              </Card>
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                onClick={() => setCodebookDialogOpen(true)}
-                disabled={codebook.size === 0}
-                variant="outline"
-                className="flex-1"
-              >
-                Show Codebook ({codebook.size} entries)
-              </Button>
-              <Button
-                onClick={() => setTokenCardsLayout(tokenCardsLayout === "vertical" ? "horizontal" : "vertical")}
-                variant="outline"
-                className="flex items-center gap-2"
-              >
-                {tokenCardsLayout === "horizontal" ? (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                      <line x1="12" y1="3" x2="12" y2="21"></line>
-                    </svg>
-                    <span>Side by Side</span>
-                  </>
-                ) : (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                      <line x1="3" y1="12" x2="21" y2="12"></line>
-                    </svg>
-                    <span>Stacked</span>
-                  </>
-                )}
-              </Button>
-            </div>
-            <div className={`grid gap-6 ${tokenCardsLayout === "horizontal" ? "grid-cols-2" : "grid-cols-1"}`}>
-              <Card className="p-6">
-                <div className="flex justify-between items-center mb-2">
-                  <div className="text-sm text-muted-foreground">Original Tokens</div>
-                  {(originalGenerationTime !== null || isStreaming) && (
-                    <div className="text-xs text-muted-foreground font-mono">
-                      {(originalGenerationTime || 0).toFixed(2)}s
-                    </div>
-                  )}
-                </div>
-                <pre className="font-mono text-sm leading-relaxed whitespace-pre-wrap break-all m-0">
-                  {isLoading ? (
-                    <div className="text-muted-foreground">Loading tokenizer...</div>
-                  ) : tokens.length === 0 ? (
-                    <div className="text-muted-foreground">Enter text to see tokens...</div>
-                  ) : (
-                    <TooltipProvider>
-                      {tokens.map((token, index) => {
-                        // Determine if this token should be highlighted
-                        const isHighlighted = 
-                          hoveredCompressedIndex !== null && 
-                          compressionMapping.get(hoveredCompressedIndex)?.includes(index);
-                        
-                        // Use base colors for original tokens
-                        const colorClass = BASE_COLORS[index % BASE_COLORS.length];
-                        const opacityClass = hoveredCompressedIndex === null || isHighlighted ? "" : "opacity-30";
-                        
-                        return (
-                          <Tooltip key={index} delayDuration={100}>
-                            <TooltipTrigger asChild>
-                            <span
-                              className={`${colorClass} ${opacityClass} cursor-default transition-all`}
-                            >
-                              {token}
-                            </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="text-xs">ID: {tokenIds[index]}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        );
-                      })}
-                    </TooltipProvider>
-                  )}
-                </pre>
-              </Card>
-              <Card className="p-6">
-                <div className="flex justify-between items-center mb-2">
-                  <div className="text-sm text-muted-foreground">Compressed Tokens</div>
-                  {(compressedGenerationTime !== null || isStreaming) && (
-                    <div className="text-xs text-muted-foreground font-mono">
-                      {(compressedGenerationTime || 0).toFixed(2)}s
-                    </div>
-                  )}
-                </div>
-                <pre className="font-mono text-sm leading-relaxed whitespace-pre-wrap break-all m-0">
-                  {compressedTokens.length > 0 ? (
-                    <TooltipProvider>
-                      {compressedTokens.map((token, index) => {
-                        const originalIndices = compressionMapping.get(index) || [];
-                        const isMultiToken = originalIndices.length > 1;
-                        const isHyperToken = compressedIds[index] >= compressionConfig.initialVocabSize;
-                        const opacityClass = hoveredCompressedIndex === null || hoveredCompressedIndex === index ? "" : "opacity-30";
-                        
-                        // Use hyper colors for compressed tokens, base colors for regular tokens
-                        const colorPalette = isHyperToken ? HYPER_COLORS : BASE_COLORS;
-                        const colorClass = colorPalette[index % colorPalette.length];
-                        
-                        return (
-                          <Tooltip key={index} delayDuration={100}>
-                            <TooltipTrigger asChild>
-                              <span
-                                className={`${colorClass} ${opacityClass} cursor-default transition-all`}
-                                onMouseEnter={() => setHoveredCompressedIndex(index)}
-                                onMouseLeave={() => setHoveredCompressedIndex(null)}
-                              >
-                                {token}
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="text-xs">ID: {compressedIds[index]}</p>
-                              {isMultiToken && (
-                                <p className="text-xs text-muted-foreground">
-                                  Compressed {originalIndices.length} tokens
-                                </p>
-                              )}
-                            </TooltipContent>
-                          </Tooltip>
-                        );
-                      })}
-                    </TooltipProvider>
-                  ) : (
-                    <div className="text-muted-foreground">No compressed tokens yet...</div>
-                  )}
-                </pre>
-              </Card>
-            </div>
-          </div>
-        </div>
-        
-        <Dialog open={codebookDialogOpen} onOpenChange={setCodebookDialogOpen}>
-          <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Codebook</DialogTitle>
-              <DialogDescription>
-                Mapping of compressed token IDs to their original token sequences. Codebook size: {codebook.size} entries.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-2 py-4">
-              {Array.from(codebook.entries()).map(([compressedId, originalIds]) => {
-                const currentTokenizer = tokenizers[selectedModel];
-                if (!currentTokenizer) return null;
-                
-                // Decode the original tokens
-                const originalTokenStrings = originalIds.map(id => 
-                  currentTokenizer.decode([id], { skip_special_tokens: false })
-                );
-                const fullText = currentTokenizer.decode(originalIds, { skip_special_tokens: false });
-                
-                return (
-                  <div key={compressedId} className="border rounded-lg p-3 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-muted-foreground">
-                        ID {compressedId}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        → {originalIds.length} token{originalIds.length > 1 ? "s" : ""}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <div className="text-xs text-muted-foreground">Original IDs:</div>
-                        <div className="font-mono text-sm bg-muted px-2 py-1 rounded">
-                          {originalIds.join(", ")}
+              </CardHeader>
+              <CardContent>
+                {selectedResult?.metrics ? (
+                  <div className="space-y-3">
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {MAIN_METRIC_ROWS.map((row) => (
+                        <div key={row.key} className="rounded-lg border bg-muted/20 p-3">
+                          <div className="text-xs text-muted-foreground">{row.label}</div>
+                          <div className="mt-1 text-lg font-semibold">
+                            {formatMetricValue(selectedResult.metrics?.[row.key], {
+                              percent: row.percent,
+                            })}
+                          </div>
                         </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="text-xs text-muted-foreground">Text:</div>
-                        <div className="font-mono text-sm bg-muted px-2 py-1 rounded break-all">
-                          &quot;{fullText}&quot;
-                        </div>
-                      </div>
+                      ))}
                     </div>
-                    <div className="space-y-1">
-                      <div className="text-xs text-muted-foreground">Tokens:</div>
-                      <div className="flex flex-wrap gap-1">
-                        {originalTokenStrings.map((token, idx) => (
-                          <span 
-                            key={idx} 
-                            className={`${BASE_COLORS[idx % BASE_COLORS.length]} px-2 py-0.5 rounded text-xs font-mono`}
-                          >
-                            {token}
-                          </span>
-                        ))}
-                      </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {FEATURED_METRIC_ROWS.map((row) => (
+                        <div
+                          key={row.key}
+                          className="rounded-lg border border-foreground/10 bg-background p-4 shadow-sm"
+                        >
+                          <div className="text-xs font-medium uppercase text-muted-foreground">
+                            {row.label}
+                          </div>
+                          <div className="mt-2 text-2xl font-semibold tracking-normal">
+                            {formatMetricValue(selectedResult.metrics?.[row.key], {
+                              percent: row.percent,
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                );
-              })}
+                ) : (
+                  <MissingData message="Metrics are missing for this example/model pair." />
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold tracking-normal">Token And Codebook View</h2>
+              <p className="text-sm text-muted-foreground">
+                Original, optimal compressed, and real model compressed artifacts.
+              </p>
             </div>
-          </DialogContent>
-        </Dialog>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={isReplayingTokens ? resetTokenReplay : startTokenReplay}
+                disabled={!hasReplayableTokens}
+              >
+                {isReplayingTokens ? <Square /> : <Play />}
+                {isReplayingTokens ? "Stop replay" : "Replay tokens"}
+              </Button>
+              <div className="inline-flex w-fit rounded-lg border bg-muted p-1">
+                <Button
+                  variant={viewMode === "optimal" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("optimal")}
+                >
+                  <Box />
+                  Optimal codebook / tokens
+                </Button>
+                <Button
+                  variant={viewMode === "model" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("model")}
+                >
+                  <Database />
+                  Real model codebook / tokens
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
+            <TokenPanel
+              title="Original"
+              tokenIds={selectedResult?.original?.token_ids}
+              tokens={selectedResult?.original?.tokens}
+              tokenizerMetadata={tokenizer}
+              expectedCount={originalMetricCount}
+              visibleLimit={tokenReplayCounts?.original}
+              elapsedSeconds={tokenReplayTimes.original}
+              isReplaying={isReplayingTokens}
+              missingMessage="original.token_ids and original.tokens are missing."
+            />
+            <TokenPanel
+              title="Optimal compressed"
+              tokenIds={selectedResult?.optimal?.compressed_token_ids}
+              tokens={selectedResult?.optimal?.tokens}
+              tokenizerMetadata={tokenizer}
+              expectedCount={optimalMetricCount}
+              visibleLimit={tokenReplayCounts?.optimal}
+              elapsedSeconds={tokenReplayTimes.optimal}
+              isReplaying={isReplayingTokens}
+              reconstructionText={selectedResult?.optimal?.reconstructed_text}
+              referenceText={selectedResult?.response}
+              missingMessage="optimal.compressed_token_ids and optimal.tokens are missing."
+            />
+            <TokenPanel
+              title="Real / model compressed"
+              tokenIds={selectedResult?.model_result?.compressed_token_ids}
+              tokens={selectedResult?.model_result?.tokens}
+              tokenizerMetadata={tokenizer}
+              expectedCount={modelMetricCount}
+              visibleLimit={tokenReplayCounts?.model}
+              elapsedSeconds={tokenReplayTimes.model}
+              isReplaying={isReplayingTokens}
+              reconstructionText={selectedResult?.model_result?.reconstructed_text}
+              referenceText={selectedResult?.response}
+              missingMessage="model_result.compressed_token_ids and model_result.tokens are missing."
+            />
+          </div>
+
+          <CodebookPanel
+            title={
+              viewMode === "optimal"
+                ? "Optimal codebook"
+                : "Real model codebook"
+            }
+            entries={activeCodebook}
+          />
+        </section>
       </div>
-    </div>
+    </main>
   );
 }
