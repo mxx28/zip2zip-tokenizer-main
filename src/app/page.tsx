@@ -1018,40 +1018,20 @@ export default function Home() {
         <section className="space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-2xl font-semibold tracking-normal">Token And Codebook View</h2>
+              <h2 className="text-2xl font-semibold tracking-normal">Token View</h2>
               <p className="text-sm text-muted-foreground">
                 Original, optimal compressed, and real model compressed artifacts.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={isReplayingTokens ? resetTokenReplay : startTokenReplay}
-                disabled={!hasReplayableTokens}
-              >
-                {isReplayingTokens ? <Square /> : <Play />}
-                {isReplayingTokens ? "Stop replay" : "Replay tokens"}
-              </Button>
-              <div className="inline-flex w-fit rounded-lg border bg-muted p-1">
-                <Button
-                  variant={viewMode === "optimal" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("optimal")}
-                >
-                  <Box />
-                  Optimal codebook / tokens
-                </Button>
-                <Button
-                  variant={viewMode === "model" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("model")}
-                >
-                  <Database />
-                  Real model codebook / tokens
-                </Button>
-              </div>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={isReplayingTokens ? resetTokenReplay : startTokenReplay}
+              disabled={!hasReplayableTokens}
+            >
+              {isReplayingTokens ? <Square /> : <Play />}
+              {isReplayingTokens ? "Stop replay" : "Replay tokens"}
+            </Button>
           </div>
 
           <div className="grid grid-cols-1 gap-4">
@@ -1092,6 +1072,35 @@ export default function Home() {
               referenceText={selectedResult?.response}
               missingMessage="model_result.compressed_token_ids and model_result.tokens are missing."
             />
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-normal">Codebook View</h2>
+              <p className="text-sm text-muted-foreground">
+                Optimal and real model compression codebooks.
+              </p>
+            </div>
+            <div className="inline-flex w-fit rounded-lg border bg-muted p-1">
+              <Button
+                variant={viewMode === "optimal" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("optimal")}
+              >
+                <Box />
+                Optimal codebook / tokens
+              </Button>
+              <Button
+                variant={viewMode === "model" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("model")}
+              >
+                <Database />
+                Real model codebook / tokens
+              </Button>
+            </div>
           </div>
 
           <CodebookPanel
