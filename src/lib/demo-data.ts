@@ -19,6 +19,9 @@ export interface DemoModelManifestEntry {
   ms?: string;
   tokenizer: DemoTokenizerMetadata;
   results_file: string;
+  run_id?: string;
+  run_label?: string;
+  run_path?: string;
 }
 
 export interface DemoManifestExample {
@@ -32,6 +35,17 @@ export interface DemoManifest {
   schema_version: number;
   models: DemoModelManifestEntry[];
   examples: DemoManifestExample[];
+}
+
+export interface DemoRunIndexEntry {
+  id: string;
+  path: string;
+  label?: string;
+}
+
+export interface DemoRunIndex {
+  schema_version: number;
+  runs: DemoRunIndexEntry[];
 }
 
 export interface DemoToken {
@@ -120,7 +134,7 @@ export interface DemoModelResults {
   examples: DemoExampleResult[];
 }
 
-export const DEMO_MANIFEST_PATH = "/demo-data/manifest.json";
+export const DEMO_RUNS_INDEX_PATH = "/demo-runs/index.json";
 
 export async function fetchDemoJson<T>(path: string): Promise<T> {
   const cacheBuster = path.includes("?") ? "&" : "?";
@@ -137,7 +151,12 @@ export async function fetchDemoJson<T>(path: string): Promise<T> {
 
 export function resolveDemoDataPath(resultsFile: string): string {
   if (resultsFile.startsWith("/")) return resultsFile;
-  return `/demo-data/${resultsFile}`;
+  return `/demo-runs/${resultsFile}`;
+}
+
+export function resolveDemoRunPath(runPath: string): string {
+  if (runPath.startsWith("/")) return runPath;
+  return `/demo-runs/${runPath}`;
 }
 
 export function findExampleResult(
@@ -184,7 +203,7 @@ export function tokenLabel(token: DemoToken): string {
       .replace(/\r/g, "\\r")
       .replace(/\t/g, "\\t");
   }
-  if (token.text === "") return `[empty:${token.id}]`;
+  if (token.text === "") return `[space:${token.id}]`;
   return `[${token.id}]`;
 }
 

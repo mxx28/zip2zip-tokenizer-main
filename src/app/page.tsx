@@ -22,14 +22,14 @@ import {
 } from "@/components/ui/select";
 import {
   codebookForMode,
-  DEMO_MANIFEST_PATH,
+  DEMO_RUNS_INDEX_PATH,
   fetchDemoJson,
   findExampleResult,
   formatCount,
   formatMetricValue,
   metricAsNumber,
   resolveDemoDataPath,
-  statusFlag,
+  resolveDemoRunPath,
   tokenKind,
   tokenLabel,
   type CompressionViewMode,
@@ -40,6 +40,8 @@ import {
   type DemoMetricValue,
   type DemoModelManifestEntry,
   type DemoModelResults,
+  type DemoRunIndex,
+  type DemoRunIndexEntry,
   type DemoToken,
   type DemoTokenizerMetadata,
 } from "@/lib/demo-data";
@@ -123,11 +125,6 @@ const HYPER_COLORS = [
   "border-teal-700 bg-teal-700 text-white",
 ];
 
-type StatusBadge = {
-  label: string;
-  variant: "default" | "secondary" | "destructive" | "outline";
-};
-
 type TokenReplayCounts = {
   original: number;
   optimal: number;
@@ -168,36 +165,63 @@ function hasDisplayableResult(result: DemoExampleResult): boolean {
   );
 }
 
-function optionLabel(example: DemoManifestExample): string {
-  return example.display_label ?? [example.id, example.category].filter(Boolean).join(" · ");
-}
-
 function modelLabel(model: DemoModelManifestEntry): string {
-  return model.label || model.slug;
+  return model.run_label || model.label || model.slug;
 }
 
-function getStatusBadges(result: DemoExampleResult | null): StatusBadge[] {
-  if (!result) return [];
+function runLabel(run: DemoRunIndexEntry): string {
+  if (run.label) return run.label;
 
-  const validOutput =
-    result.status?.valid_output ?? result.metrics?.valid_output ?? null;
-  const emptyOrTooShort =
-    result.status?.empty_or_too_short ?? result.metrics?.empty_or_too_short ?? null;
-  const degenerate =
-    result.status?.degenerate_repetition ?? result.metrics?.degenerate_repetition ?? null;
+  const cleanedId = run.id.replace(/_demo_data$/, "");
+  const parts = cleanedId.split("-");
+  if (parts.length >= 4) return `${parts[2]}-${parts[3]}`;
 
-  return [
-    {
-      label: statusFlag(validOutput) ? "valid" : "invalid",
-      variant: statusFlag(validOutput) ? "secondary" : "outline",
-    },
-    ...(statusFlag(emptyOrTooShort)
-      ? [{ label: "empty / too short", variant: "outline" as const }]
-      : []),
-    ...(statusFlag(degenerate)
-      ? [{ label: "degenerate", variant: "outline" as const }]
-      : []),
-  ];
+  return cleanedId;
+}
+
+function modelSlugForRun(run: DemoRunIndexEntry, model: DemoModelManifestEntry): string {
+  return `${run.id}__${model.slug}`;
+}
+
+function modelResultsPath(run: DemoRunIndexEntry, resultsFile: string): string {
+  return `${run.path}/${resultsFile}`;
+}
+
+function buildManifestFromRuns(
+  runs: DemoRunIndexEntry[],
+  manifests: DemoManifest[]
+): DemoManifest {
+  const examplesById = new Map<string, DemoManifestExample>();
+  const models: DemoModelManifestEntry[] = [];
+
+  runs.forEach((run, runIndex) => {
+    const runManifest = manifests[runIndex];
+    const label = runLabel(run);
+
+    runManifest.examples.forEach((example) => {
+      if (!examplesById.has(example.id)) {
+        examplesById.set(example.id, example);
+      }
+    });
+
+    runManifest.models.forEach((model) => {
+      models.push({
+        ...model,
+        slug: modelSlugForRun(run, model),
+        label,
+        results_file: modelResultsPath(run, model.results_file),
+        run_id: run.id,
+        run_label: label,
+        run_path: run.path,
+      });
+    });
+  });
+
+  return {
+    schema_version: 1,
+    models,
+    examples: Array.from(examplesById.values()),
+  };
 }
 
 function MissingData({ message }: { message: string }) {
@@ -322,7 +346,8 @@ function TokenPanel({
   referenceText?: string;
   missingMessage: string;
 }) {
-  const allTokens = tokens?.length
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const allTokens: DemoToken[] | undefined = tokens?.length
     ? tokens
     : tokenIds?.map((id, index) => ({ index, id }));
   const visibleTokens =
@@ -338,6 +363,19 @@ function TokenPanel({
     reconstructionText !== undefined &&
     referenceText !== undefined &&
     reconstructionText !== referenceText;
+
+  useEffect(() => {
+    if (visibleLimit === undefined) return;
+
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      scrollContainer.scrollTop = scrollContainer.scrollHeight;
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [visibleLimit, shownCount]);
 
   return (
     <Card className="rounded-lg border-zinc-200 bg-white py-5 shadow-sm">
@@ -364,18 +402,25 @@ function TokenPanel({
       </CardHeader>
       <CardContent>
         {visibleTokens?.length ? (
-          <div className="max-h-72 overflow-auto rounded-lg bg-background p-3">
-            <div className="font-mono text-sm leading-7">
+          <div
+            ref={scrollContainerRef}
+            className="max-h-72 overflow-y-auto overflow-x-hidden rounded-lg bg-background p-3"
+          >
+            <div className="font-mono text-sm leading-7 break-all">
               {visibleTokens.map((token) => (
                 <span
                   key={`${token.index}-${token.id}`}
-                  title={`index=${token.index}, id=${token.id}`}
+                  title={`index=${token.index}, id=${token.id}\n${tokenLabel(token)}`}
                   className={cn(
                     "box-decoration-clone px-0.5 py-0.5 whitespace-pre-wrap",
                     tokenClass(token, tokenizerMetadata)
                   )}
                 >
-                  {tokenLabel(token)}
+                  {token.text !== undefined && token.text.length > 0
+                    ? token.text.replace(/\n/g, "↵\n")
+                    : token.text === ""
+                    ? " "
+                    : `[${token.id}]`}
                 </span>
               ))}
             </div>
@@ -431,7 +476,7 @@ function CodebookPanel({
             ))}
             {entries.length > 80 && (
               <div className="text-xs text-muted-foreground">
-                Showing first 80 entries. The full codebook remains available in demo-data.
+                Showing first 80 entries. The full codebook remains available in the demo run.
               </div>
             )}
           </div>
@@ -449,6 +494,7 @@ export default function Home() {
   const [isManifestLoading, setIsManifestLoading] = useState(true);
   const [selectedModelSlug, setSelectedModelSlug] = useState("");
   const [selectedExampleId, setSelectedExampleId] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
   const [modelResultsBySlug, setModelResultsBySlug] = useState<Record<string, DemoModelResults>>({});
   const [modelLoadError, setModelLoadError] = useState<string | null>(null);
   const [autoSelectedByModel, setAutoSelectedByModel] = useState<Record<string, boolean>>({});
@@ -468,7 +514,13 @@ export default function Home() {
     setManifestError(null);
 
     try {
-      const nextManifest = await fetchDemoJson<DemoManifest>(DEMO_MANIFEST_PATH);
+      const index = await fetchDemoJson<DemoRunIndex>(DEMO_RUNS_INDEX_PATH);
+      const runManifests = await Promise.all(
+        index.runs.map((run) =>
+          fetchDemoJson<DemoManifest>(`${resolveDemoRunPath(run.path)}/manifest.json`)
+        )
+      );
+      const nextManifest = buildManifestFromRuns(index.runs, runManifests);
       setManifest(nextManifest);
       setSelectedModelSlug((current) => current || nextManifest.models[0]?.slug || "");
       setSelectedExampleId((current) => current || nextManifest.examples[0]?.id || "");
@@ -528,7 +580,13 @@ export default function Home() {
         if (!isCancelled) {
           setModelResultsBySlug((current) => ({
             ...current,
-            [model.slug]: results,
+            [model.slug]: {
+              ...results,
+              model_slug: model.slug,
+              model_group: results.model_group ?? model.model_group,
+              ms: results.ms ?? model.ms,
+              tokenizer: results.tokenizer ?? model.tokenizer,
+            },
           }));
         }
       } catch (error) {
@@ -582,11 +640,43 @@ export default function Home() {
     return Array.from(examplesById.values());
   }, [manifest, modelResults]);
 
+  const categoryOptions = useMemo(() => {
+    const categories = new Set<string>();
+    exampleOptions.forEach((example) => {
+      if (example.category) categories.add(example.category);
+    });
+    return Array.from(categories);
+  }, [exampleOptions]);
+
+  const filteredExampleOptions = useMemo(
+    () =>
+      selectedCategory
+        ? exampleOptions.filter((example) => example.category === selectedCategory)
+        : exampleOptions,
+    [exampleOptions, selectedCategory]
+  );
+
   useEffect(() => {
     if (!selectedExampleId && exampleOptions[0]) {
       setSelectedExampleId(exampleOptions[0].id);
     }
   }, [exampleOptions, selectedExampleId]);
+
+  // Initialize/sync the selected category from the selected example.
+  useEffect(() => {
+    if (selectedCategory) return;
+    const current = exampleOptions.find((example) => example.id === selectedExampleId);
+    if (current?.category) setSelectedCategory(current.category);
+  }, [exampleOptions, selectedCategory, selectedExampleId]);
+
+  // When the category changes, ensure the selected example belongs to it.
+  useEffect(() => {
+    if (!selectedCategory) return;
+    const stillValid = filteredExampleOptions.some((example) => example.id === selectedExampleId);
+    if (!stillValid && filteredExampleOptions[0]) {
+      setSelectedExampleId(filteredExampleOptions[0].id);
+    }
+  }, [filteredExampleOptions, selectedCategory, selectedExampleId]);
 
   const selectedManifestExample =
     exampleOptions.find((example) => example.id === selectedExampleId) ?? null;
@@ -622,7 +712,6 @@ export default function Home() {
   const optimalCount = optimalDisplayCount ?? optimalMetricCount;
   const modelCount = modelDisplayCount ?? modelMetricCount;
   const activeCodebook = codebookForMode(selectedResult, viewMode);
-  const statusBadges = getStatusBadges(selectedResult);
   const replayTotalCounts = useMemo(
     () => ({
       original: originalDisplayCount ?? 0,
@@ -721,12 +810,6 @@ export default function Home() {
               <h1 className="text-4xl font-semibold tracking-normal md:text-5xl">
                 Zip2Zip Demonstration
               </h1>
-              {selectedResult &&
-                statusBadges.map((badge) => (
-                  <Badge key={badge.label} variant={badge.variant}>
-                    {badge.label}
-                  </Badge>
-                ))}
             </div>
             <p className="max-w-3xl text-sm text-muted-foreground">
               Result-driven view for model compression and reconstruction artifacts.
@@ -740,13 +823,13 @@ export default function Home() {
 
         {manifestError && (
           <MissingData
-            message={`Could not load /public${DEMO_MANIFEST_PATH}: ${manifestError}`}
+            message={`Could not load /public${DEMO_RUNS_INDEX_PATH}: ${manifestError}`}
           />
         )}
 
         {!manifestError && !isManifestLoading && manifest?.models.length === 0 && (
           <MissingData
-            message="Waiting for complete demo-data. Add manifest.json and model result JSON files under public/demo-data."
+            message="Waiting for demo runs. Add run folders under public/demo-runs and list them in index.json."
           />
         )}
 
@@ -764,25 +847,46 @@ export default function Home() {
                 <CardDescription>Select an example and inspect its prompt/response.</CardDescription>
               </CardHeader>
               <CardContent className="flex min-h-0 flex-1 flex-col gap-5">
-                <div className="space-y-2">
-                  <Label htmlFor="example-select">Example ID</Label>
-                  {exampleOptions.length ? (
-                    <Select value={selectedExampleId} onValueChange={setSelectedExampleId}>
-                      <SelectTrigger id="example-select" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {exampleOptions.map((example) => (
-                          <SelectItem key={example.id} value={example.id}>
-                            {optionLabel(example)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <MissingData message="No examples available in manifest or loaded model results." />
-                  )}
-                </div>
+                {exampleOptions.length ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="category-select">Category</Label>
+                      {categoryOptions.length ? (
+                        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                          <SelectTrigger id="category-select" className="w-full">
+                            <SelectValue placeholder="All categories" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categoryOptions.map((category) => (
+                              <SelectItem key={category} value={category}>
+                                {category}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <MissingData message="No categories available." />
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="example-select">Example ID</Label>
+                      <Select value={selectedExampleId} onValueChange={setSelectedExampleId}>
+                        <SelectTrigger id="example-select" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {filteredExampleOptions.map((example) => (
+                            <SelectItem key={example.id} value={example.id}>
+                              {example.id}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                ) : (
+                  <MissingData message="No examples available in manifest or loaded model results." />
+                )}
 
                 <TextBlock
                   title="Prompt"
@@ -827,7 +931,7 @@ export default function Home() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <MissingData message="No model entries found in manifest.json." />
+                    <MissingData message="No model entries found in demo run manifests." />
                   )}
                 </div>
                 <div className="rounded-lg border bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
