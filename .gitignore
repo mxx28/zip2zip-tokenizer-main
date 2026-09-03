@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local demo data snapshots / generated outputs
+/data-instruct/
+/*_demo_data/
+/demo-instruct/
+/demo-data-greedy/
+/demo-data-sample/
+/demo-data test/
+/demo-data/demo-instruct/
+/public/demo-data.backup-*/
+/public/demo-data/demo-instruct/
+/public/demo-data/manifest.json.bak-*
