@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:data": "node scripts/check-demo-data.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.7.5",
