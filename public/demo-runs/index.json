@@ -1,3 +1,15 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:007091d4f057d189ecda37b5b75342f3efe766bca2fbabd7c9ad027d1ea66188
-size 505
+{
+  "schema_version": 1,
+  "runs": [
+    {
+      "id": "andrea-z2z-phi35-4B-zeroinit-1BData-v0.6.4-Zip2zipCore_step_8000_demo_data",
+      "path": "andrea-z2z-phi35-4B-zeroinit-1BData-v0.6.4-Zip2zipCore_step_8000_demo_data",
+      "label": "zip2zip++(phi35-4B)"
+    },
+    {
+      "id": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000_demo_data",
+      "path": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000_demo_data",
+      "label": "baseline(phi35-4B)"
+    }
+  ]
+}

@@ -1,3 +1,0 @@
-public/demo-runs/**/*.json filter=lfs diff=lfs merge=lfs -text
-public/demo-runs/**/*.jsonl filter=lfs diff=lfs merge=lfs -text
-public/demo-runs/**/*.csv filter=lfs diff=lfs merge=lfs -text

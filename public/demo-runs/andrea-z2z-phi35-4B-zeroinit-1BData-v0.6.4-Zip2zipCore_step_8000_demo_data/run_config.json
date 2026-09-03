@@ -1,3 +1,47 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:6743f41da2eb344fbe8bc1ac7e2bdc7dc14aad0afc2499e521acf1d6a20ddadc
-size 1395
+{
+  "checkpoint": "/mnt/dlabscratch1/xinma/zip2zip-outputs/andrea-z2z-phi35-4B-zeroinit-1BData-v0.6.4-Zip2zipCore/step_8000",
+  "question_file": "/mnt/dlabscratch1/xinma/demo_question.jsonl",
+  "question_sha256": "4d9ac381eaf1ea82c3a375059d79596683ab579e8a2a84d0df6b28063a2648ae",
+  "out_dir": "/mnt/dlabscratch1/xinma/zip2zip-core/outputs/andrea-z2z-phi35-4B-zeroinit-1BData-v0.6.4-Zip2zipCore_step_8000_demo_data",
+  "seed": 42,
+  "max_new_tokens": 512,
+  "temperature": 1.0,
+  "instruct": true,
+  "device": "cuda",
+  "tokenizer": {
+    "name": "microsoft/Phi-3.5-mini-instruct",
+    "base_vocab_size": 32064,
+    "zip_token_start": 32064,
+    "zip_vocab_size": 4096,
+    "pad_token_id": 32000,
+    "eos_token_id": 32000,
+    "special_token_ids": [
+      0,
+      1,
+      2,
+      32000,
+      32001,
+      32002,
+      32003,
+      32004,
+      32005,
+      32006,
+      32007,
+      32008,
+      32009,
+      32010
+    ]
+  },
+  "checkpoint_runtime": {
+    "base_token_positions": true,
+    "two_axis_rope": false,
+    "gated_compressed_rope": false,
+    "untied_hyper_encoder": true,
+    "max_subtokens": 4,
+    "max_codebook_size": 4096
+  },
+  "model": "/mnt/dlabscratch1/xinma/zip2zip-outputs/andrea-z2z-phi35-4B-zeroinit-1BData-v0.6.4-Zip2zipCore/step_8000",
+  "model_slug": "andrea-z2z-phi35-4B-zeroinit-1BData-v0.6.4-Zip2zipCore_step_8000",
+  "model_group": "core",
+  "ms": "unknown"
+}

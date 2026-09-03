@@ -1,3 +1,333 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:c232bc1e7d9b2df36b7c2a5692315367d7b459a0fd621cdde75a8582ff2662c4
-size 9767
+{
+  "schema_version": 1,
+  "run_dir": "/mnt/dlabscratch1/xinma/zip2zip-core/outputs/andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000_demo_data",
+  "num_models": 1,
+  "num_examples": 65,
+  "examples": [
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "81",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "82",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "83",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "84",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "85",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "91",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "92",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "93",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "94",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "95",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "101",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "102",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "103",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "104",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "105",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "111",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "112",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "113",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "114",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "115",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "121",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "122",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "123",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "124",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "125",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "131",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "132",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "133",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "134",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "135",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "141",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "142",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "143",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "144",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "145",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "151",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "152",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "153",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "154",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "155",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "161",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "162",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "163",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "164",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "165",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "241",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "242",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "243",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "244",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "245",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "321",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "322",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "323",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "324",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "325",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "401",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "402",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "403",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "404",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "405",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "481",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "482",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "483",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "484",
+      "issues": []
+    },
+    {
+      "model_slug": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000",
+      "example_id": "485",
+      "issues": []
+    }
+  ]
+}
