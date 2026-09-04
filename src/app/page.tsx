@@ -413,6 +413,7 @@ function TokenPanel({
                   title={`index=${token.index}, id=${token.id}\n${tokenLabel(token)}`}
                   className={cn(
                     "box-decoration-clone px-0.5 py-0.5 whitespace-pre-wrap",
+                    "[animation:token-reveal_200ms_ease-out]",
                     tokenClass(token, tokenizerMetadata)
                   )}
                 >
@@ -735,9 +736,21 @@ export default function Home() {
     });
   }, []);
 
+  // Auto-play the token reveal from the start whenever the selected example or
+  // model changes. While the newly selected model's results are still loading,
+  // hasReplayableTokens is false, so this resets to empty and waits; once the
+  // data arrives (hasReplayableTokens flips to true) it restarts the replay.
   useEffect(() => {
-    resetTokenReplay();
-  }, [resetTokenReplay, selectedExampleId, selectedModelSlug]);
+    if (hasReplayableTokens) {
+      setTokenReplayCounts({ original: 0, optimal: 0, model: 0 });
+      setTokenReplayTimes({ original: 0, optimal: 0, model: 0 });
+      setIsReplayingTokens(true);
+    } else {
+      setIsReplayingTokens(false);
+      setTokenReplayCounts(null);
+      setTokenReplayTimes({ original: null, optimal: null, model: null });
+    }
+  }, [selectedExampleId, selectedModelSlug, hasReplayableTokens]);
 
   const startTokenReplay = useCallback(() => {
     if (!hasReplayableTokens) return;
@@ -1032,6 +1045,21 @@ export default function Home() {
               {isReplayingTokens ? <Square /> : <Play />}
               {isReplayingTokens ? "Stop replay" : "Replay tokens"}
             </Button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <span className={cn("size-2.5 rounded-full", BASE_COLORS[0].split(" ")[1])} />
+              Base token (color cycles by position)
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className={cn("size-2.5 rounded-full", HYPER_COLORS[0].split(" ")[1])} />
+              Zip (compressed) token
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="size-2.5 rounded-full border border-zinc-300 bg-zinc-100" />
+              Special / pad token
+            </span>
           </div>
 
           <div className="grid grid-cols-1 gap-4">
