@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { BookOpen, Box, Database, Layers, Play, RefreshCw, Square } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -820,6 +821,13 @@ export default function Home() {
         <header className="flex flex-col gap-5 border-b pb-6 md:flex-row md:items-start md:justify-between">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-3">
+              <Image
+                src="/dlab-logo.png"
+                alt="dlab"
+                width={40}
+                height={40}
+                className="rounded-md"
+              />
               <h1 className="text-4xl font-semibold tracking-normal md:text-5xl">
                 Zip2Zip Demonstration
               </h1>
