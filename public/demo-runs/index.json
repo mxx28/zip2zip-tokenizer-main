@@ -2,14 +2,64 @@
   "schema_version": 1,
   "runs": [
     {
-      "id": "andrea-z2z-phi35-4B-zeroinit-1BData-v0.6.4-Zip2zipCore_step_8000_demo_data",
-      "path": "andrea-z2z-phi35-4B-zeroinit-1BData-v0.6.4-Zip2zipCore_step_8000_demo_data",
-      "label": "zip2zip++(phi35-4B)"
+      "id": "andrea-phi3-14B-baseline-step8000_demo_data",
+      "path": "andrea-phi3-14B-baseline-step8000_demo_data",
+      "label": "baseline(phi3-14B)"
+    },
+    {
+      "id": "andrea-phi3-14B-zip2zip-step8000_demo_data",
+      "path": "andrea-phi3-14B-zip2zip-step8000_demo_data",
+      "label": "zip2zip(phi3-14B)"
+    },
+    {
+      "id": "andrea-phi3-14B-zip2zippp-step8000_demo_data",
+      "path": "andrea-phi3-14B-zip2zippp-step8000_demo_data",
+      "label": "zip2zip++(phi3-14B)"
     },
     {
       "id": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000_demo_data",
       "path": "andrea-ctrl-phi35-4B-codebook0-1BData-v0.4-Zip2zipCore_step_8000_demo_data",
       "label": "baseline(phi35-4B)"
+    },
+    {
+      "id": "zip2zip-phi35-4B-step8000_demo_data",
+      "path": "zip2zip-phi35-4B-step8000_demo_data",
+      "label": "zip2zip(phi35-4B)"
+    },
+    {
+      "id": "andrea-z2z-phi35-4B-zeroinit-1BData-v0.6.4-Zip2zipCore_step_8000_demo_data",
+      "path": "andrea-z2z-phi35-4B-zeroinit-1BData-v0.6.4-Zip2zipCore_step_8000_demo_data",
+      "label": "zip2zip++(phi35-4B)"
+    },
+    {
+      "id": "baseline-llama32-3B-step8000_demo_data",
+      "path": "baseline-llama32-3B-step8000_demo_data",
+      "label": "baseline(llama32-3B)"
+    },
+    {
+      "id": "zip2zip-llama32-3B-step8000_demo_data",
+      "path": "zip2zip-llama32-3B-step8000_demo_data",
+      "label": "zip2zip(llama32-3B)"
+    },
+    {
+      "id": "andrea-z2z-llama32-3B-zeroinit-1BData-v0.6.4-Zip2zipCore_step_8000_demo_data",
+      "path": "andrea-z2z-llama32-3B-zeroinit-1BData-v0.6.4-Zip2zipCore_step_8000_demo_data",
+      "label": "zip2zip++(llama32-3B)"
+    },
+    {
+      "id": "baseline-llama32-1B-step8000_demo_data",
+      "path": "baseline-llama32-1B-step8000_demo_data",
+      "label": "baseline(llama32-1B)"
+    },
+    {
+      "id": "zip2zip-llama32-1B-step8000_demo_data",
+      "path": "zip2zip-llama32-1B-step8000_demo_data",
+      "label": "zip2zip(llama32-1B)"
+    },
+    {
+      "id": "zip2zippp-llama32-1B-step8000_demo_data",
+      "path": "zip2zippp-llama32-1B-step8000_demo_data",
+      "label": "zip2zip++(llama32-1B)"
     }
   ]
 }
