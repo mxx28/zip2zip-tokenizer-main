@@ -1,8 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { BookOpen, Box, Database, Layers, Play, RefreshCw, Square } from "lucide-react";
+import {
+  BookOpen,
+  Box,
+  Database,
+  Gauge,
+  Layers,
+  Play,
+  RefreshCw,
+  Square,
+  TrendingDown,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +28,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -48,6 +59,8 @@ import {
 } from "@/lib/demo-data";
 import { cn } from "@/lib/utils";
 
+const DEFAULT_CATEGORY = "coding";
+
 const METRIC_ROWS: Array<{
   key: string;
   label: string;
@@ -61,22 +74,19 @@ const METRIC_ROWS: Array<{
   { key: "theory_bytes_per_zip_token", label: "Theory bytes / zip token" },
   { key: "compression_efficiency", label: "Compression efficiency", percent: true },
   { key: "base_token_saving", label: "Base token saving", percent: true },
-  { key: "gpt2_mean_nll", label: "GPT-2 mean NLL" },
-  { key: "gpt2_bits_per_byte", label: "GPT-2 bits / byte" },
 ];
 
-const FEATURED_METRIC_KEYS = new Set([
-  "compression_efficiency",
-  "base_token_saving",
-  "gpt2_mean_nll",
-  "gpt2_bits_per_byte",
-]);
+const FEATURED_METRIC_KEYS = new Set(["compression_efficiency", "base_token_saving"]);
 const TOKEN_COUNT_METRIC_KEYS = new Set([
   "base_new_tokens",
   "theory_new_zip_tokens",
   "actual_new_zip_tokens",
 ]);
 const FEATURED_METRIC_ROWS = METRIC_ROWS.filter((row) => FEATURED_METRIC_KEYS.has(row.key));
+const FEATURED_METRIC_ICONS: Record<string, typeof Gauge> = {
+  compression_efficiency: Gauge,
+  base_token_saving: TrendingDown,
+};
 const MAIN_METRIC_ROWS = METRIC_ROWS.filter(
   (row) => !FEATURED_METRIC_KEYS.has(row.key) && !TOKEN_COUNT_METRIC_KEYS.has(row.key)
 );
@@ -154,6 +164,10 @@ function displayCount(tokens?: DemoToken[], tokenIds?: number[]): number | undef
   return tokens?.length || tokenIds?.length || undefined;
 }
 
+function preferDefaultCategory<T extends { category?: string }>(items: T[]): T | undefined {
+  return items.find((item) => item.category === DEFAULT_CATEGORY) ?? items[0];
+}
+
 function hasDisplayableResult(result: DemoExampleResult): boolean {
   return Boolean(
     result.response ||
@@ -168,6 +182,20 @@ function hasDisplayableResult(result: DemoExampleResult): boolean {
 
 function modelLabel(model: DemoModelManifestEntry): string {
   return model.run_label || model.label || model.slug;
+}
+
+function modelBaseName(label: string): string {
+  return label.match(/\(([^)]+)\)/)?.[1] ?? label;
+}
+
+function isHyperCompressedModel(label: string): boolean {
+  return label.startsWith("zip2zip++");
+}
+
+const DEFAULT_MODEL_LABEL = "zip2zip++(phi3-14B)";
+
+function preferDefaultModel(models: DemoModelManifestEntry[]): DemoModelManifestEntry | undefined {
+  return models.find((model) => modelLabel(model) === DEFAULT_MODEL_LABEL) ?? models[0];
 }
 
 function runLabel(run: DemoRunIndexEntry): string {
@@ -268,39 +296,194 @@ function countDelta(count: DemoMetricValue, base: DemoMetricValue): string | nul
   return `${((countNumber / baseNumber - 1) * 100).toFixed(1)}%`;
 }
 
+const COUNT_ANIMATION_MS = 900;
+
+// Keeps the last known number on screen while the next model's results are in
+// flight, so switching models rolls the counters instead of blinking "Missing".
+function useHeldNumber(value: DemoMetricValue, pending: boolean): number | null {
+  const number = metricAsNumber(value);
+  const lastRef = useRef<number | null>(number);
+
+  if (number !== null) {
+    lastRef.current = number;
+  } else if (!pending) {
+    lastRef.current = null;
+  }
+
+  return number ?? (pending ? lastRef.current : null);
+}
+
+// Animates a count from `base` (the original token count) down to `target`
+// every time `target` lands on a new value — including the very first time
+// data arrives, so the card visibly "shrinks" from the original size on load,
+// on every example switch, and on every model switch. When `enabled` is
+// false the value is shown as-is with no animation.
+function useShrinkFromBase(
+  target: number | null,
+  base: number | null,
+  enabled: boolean
+): number | null {
+  const [progress, setProgress] = useState(1);
+
+  // useLayoutEffect (not useEffect) so the reset-to-0 and the rAF loop start
+  // land in the same pre-paint pass — the number never flashes at its final
+  // value for a frame before animating in. The effect's own dependency array
+  // already re-runs it exactly when `target` lands on a new value, so no
+  // extra "did it change" ref is needed (a ref like that doesn't survive
+  // React 18 StrictMode's dev-only double-invoke of this effect cleanly when
+  // a component mounts with a non-null target on its very first render).
+  useLayoutEffect(() => {
+    if (!enabled || target === null || base === null) {
+      setProgress(1);
+      return;
+    }
+
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReducedMotion) {
+      setProgress(1);
+      return;
+    }
+
+    setProgress(0);
+    const startTime = performance.now();
+    let frameId = 0;
+
+    const step = (now: number) => {
+      const linearProgress = Math.min((now - startTime) / COUNT_ANIMATION_MS, 1);
+      // Ease-out cubic so the number settles instead of stopping abruptly.
+      setProgress(1 - Math.pow(1 - linearProgress, 3));
+      if (linearProgress < 1) frameId = window.requestAnimationFrame(step);
+    };
+
+    frameId = window.requestAnimationFrame(step);
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [target, base, enabled]);
+
+  if (target === null) return null;
+  if (!enabled || base === null) return target;
+
+  // Not rounded here — callers decide (integer token counts round for
+  // display, fractional percentages need to keep their precision).
+  return base + (target - base) * progress;
+}
+
 function CountCard({
   title,
   value,
   baseValue,
+  scaleValue,
+  pending = false,
 }: {
   title: string;
   value: DemoMetricValue;
   baseValue?: DemoMetricValue;
+  scaleValue?: DemoMetricValue;
+  pending?: boolean;
 }) {
-  const delta = baseValue === undefined ? null : countDelta(value, baseValue);
+  const countNumber = useHeldNumber(value, pending);
+  const baseNumber = useHeldNumber(baseValue, pending);
+  const scaleNumber = useHeldNumber(scaleValue ?? baseValue ?? value, pending);
+  // Original tokens has no baseValue — it never animates, it just is the
+  // reference size, and it gets the plain card style. Model/Optimal both
+  // shrink from that reference every time and share the same green styling.
+  const shouldAnimate = baseValue !== undefined;
+  const animatedCount = useShrinkFromBase(countNumber, baseNumber, shouldAnimate);
+  // Token counts are integers — round only for display/the bar, the hook
+  // itself keeps the unrounded float so the animation stays smooth.
+  const displayedCount = animatedCount === null ? null : Math.round(animatedCount);
+
+  const delta = baseValue === undefined ? null : countDelta(countNumber, baseNumber);
   const deltaNumber = delta ? Number(delta.replace("%", "")) : null;
+  const barPercent =
+    animatedCount !== null && scaleNumber !== null && scaleNumber > 0
+      ? Math.max(Math.min((animatedCount / scaleNumber) * 100, 100), 2)
+      : null;
+
+  const isImprovement = deltaNumber !== null && deltaNumber < 0;
+  const isRegression = deltaNumber !== null && deltaNumber > 0;
 
   return (
-    <Card className="rounded-lg border-zinc-200 bg-white py-5 shadow-sm">
-      <CardContent className="space-y-3">
+    <Card
+      className={cn(
+        "h-full rounded-lg py-5 shadow-sm",
+        shouldAnimate
+          ? "border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white"
+          : "border-zinc-200 bg-white"
+      )}
+    >
+      <CardContent className="flex h-full flex-col gap-3">
         <div className="whitespace-nowrap text-sm text-muted-foreground">{title}</div>
         <div className="flex items-baseline gap-2">
-          <div className="text-3xl font-semibold tracking-normal">{formatCount(value)}</div>
+          <div className="text-3xl font-semibold tabular-nums tracking-normal">
+            {displayedCount === null ? formatCount(value) : formatCount(displayedCount)}
+          </div>
           {delta && (
             <div
               className={cn(
-                "text-sm font-medium",
-                deltaNumber !== null && deltaNumber < 0 && "text-green-700",
-                deltaNumber !== null && deltaNumber === 0 && "text-muted-foreground",
-                deltaNumber !== null && deltaNumber > 0 && "text-red-700"
+                "rounded-full px-2 py-0.5 text-sm font-medium tabular-nums",
+                isImprovement && "bg-green-100 text-green-800",
+                deltaNumber === 0 && "bg-muted text-muted-foreground",
+                isRegression && "bg-red-100 text-red-800"
               )}
             >
-              {delta}
+              {isImprovement ? `↓${delta.replace("-", "")}` : delta}
             </div>
           )}
         </div>
+        {barPercent !== null && (
+          <div
+            className={cn(
+              "mt-auto h-2 w-full overflow-hidden rounded-full",
+              shouldAnimate ? "bg-emerald-100" : "bg-muted"
+            )}
+          >
+            <div
+              className={cn(
+                "h-full rounded-full",
+                shouldAnimate ? "bg-emerald-500" : "bg-zinc-400"
+              )}
+              style={{ width: `${barPercent}%` }}
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function FeaturedMetricCard({
+  label,
+  rawValue,
+  percent,
+  Icon,
+}: {
+  label: string;
+  rawValue: number | null;
+  percent?: boolean;
+  Icon?: typeof Gauge;
+}) {
+  // Counts up from 0 every time a new value lands — first load, example
+  // switch, or model switch — matching the shrink-from-base cards above.
+  const animatedValue = useShrinkFromBase(rawValue, rawValue === null ? null : 0, true);
+  const barPercent =
+    percent && animatedValue !== null ? Math.max(Math.min(animatedValue * 100, 100), 0) : null;
+
+  return (
+    <div className="rounded-lg border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-5 shadow-sm">
+      <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-emerald-700">
+        {Icon && <Icon className="size-3.5" />}
+        {label}
+      </div>
+      <div className="mt-2 text-3xl font-semibold tracking-normal text-emerald-950">
+        {formatMetricValue(animatedValue, { percent })}
+      </div>
+      {barPercent !== null && (
+        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-emerald-100">
+          <div className="h-full rounded-full bg-emerald-500" style={{ width: `${barPercent}%` }} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -524,8 +707,10 @@ export default function Home() {
       );
       const nextManifest = buildManifestFromRuns(index.runs, runManifests);
       setManifest(nextManifest);
-      setSelectedModelSlug((current) => current || nextManifest.models[0]?.slug || "");
-      setSelectedExampleId((current) => current || nextManifest.examples[0]?.id || "");
+      setSelectedModelSlug((current) => current || preferDefaultModel(nextManifest.models)?.slug || "");
+      setSelectedExampleId(
+        (current) => current || preferDefaultCategory(nextManifest.examples)?.id || ""
+      );
     } catch (error) {
       setManifest(null);
       setManifestError(error instanceof Error ? error.message : "Failed to load manifest");
@@ -606,13 +791,17 @@ export default function Home() {
   }, [selectedModel, modelResultsBySlug]);
 
   const modelResults = selectedModelSlug ? modelResultsBySlug[selectedModelSlug] ?? null : null;
+  // True only while the selected model's results file is still downloading.
+  const isModelResultPending = Boolean(selectedModelSlug) && !modelResults && !modelLoadError;
   const tokenizer = modelResults?.tokenizer ?? selectedModel?.tokenizer;
 
   useEffect(() => {
     if (!selectedModelSlug || !modelResults || autoSelectedByModel[selectedModelSlug]) return;
 
     const currentResult = findExampleResult(modelResults, selectedExampleId);
-    const firstDisplayableResult = modelResults.examples.find(hasDisplayableResult);
+    const firstDisplayableResult = preferDefaultCategory(
+      modelResults.examples.filter(hasDisplayableResult)
+    );
 
     if (firstDisplayableResult && (!currentResult || !hasDisplayableResult(currentResult))) {
       setSelectedExampleId(firstDisplayableResult.example_id);
@@ -659,9 +848,9 @@ export default function Home() {
   );
 
   useEffect(() => {
-    if (!selectedExampleId && exampleOptions[0]) {
-      setSelectedExampleId(exampleOptions[0].id);
-    }
+    if (selectedExampleId || !exampleOptions[0]) return;
+    const defaultExample = preferDefaultCategory(exampleOptions) ?? exampleOptions[0];
+    setSelectedExampleId(defaultExample.id);
   }, [exampleOptions, selectedExampleId]);
 
   // Initialize/sync the selected category from the selected example.
@@ -944,11 +1133,25 @@ export default function Home() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {manifest.models.map((model) => (
-                          <SelectItem key={model.slug} value={model.slug}>
-                            {modelLabel(model)}
-                          </SelectItem>
-                        ))}
+                        {manifest.models.map((model, index) => {
+                          const label = modelLabel(model);
+                          const baseModel = modelBaseName(label);
+                          const previousBaseModel =
+                            index > 0 ? modelBaseName(modelLabel(manifest.models[index - 1])) : null;
+                          const isNewGroup = previousBaseModel !== null && baseModel !== previousBaseModel;
+
+                          return (
+                            <Fragment key={model.slug}>
+                              {isNewGroup && <SelectSeparator />}
+                              <SelectItem
+                                value={model.slug}
+                                className={cn(isHyperCompressedModel(label) && "font-semibold")}
+                              >
+                                {label}
+                              </SelectItem>
+                            </Fragment>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   ) : (
@@ -970,16 +1173,25 @@ export default function Home() {
             {modelLoadError && <MissingData message={modelLoadError} />}
 
             <div className="grid gap-4 md:grid-cols-3">
-              <CountCard title="Original tokens" value={originalCount} />
               <CountCard
-                title="Optimal compressed tokens"
-                value={optimalCount}
-                baseValue={originalCount}
+                title="Original tokens"
+                value={originalCount}
+                scaleValue={originalCount}
+                pending={isModelResultPending}
               />
               <CountCard
                 title="Model compressed tokens"
                 value={modelCount}
                 baseValue={originalCount}
+                scaleValue={originalCount}
+                pending={isModelResultPending}
+              />
+              <CountCard
+                title="Optimal compressed tokens"
+                value={optimalCount}
+                baseValue={originalCount}
+                scaleValue={originalCount}
+                pending={isModelResultPending}
               />
             </div>
 
@@ -1012,19 +1224,13 @@ export default function Home() {
                     </div>
                     <div className="grid gap-3 md:grid-cols-2">
                       {FEATURED_METRIC_ROWS.map((row) => (
-                        <div
+                        <FeaturedMetricCard
                           key={row.key}
-                          className="rounded-lg border border-zinc-200 bg-zinc-50/70 p-5 shadow-sm"
-                        >
-                          <div className="text-xs font-medium uppercase text-muted-foreground">
-                            {row.label}
-                          </div>
-                          <div className="mt-2 text-3xl font-semibold tracking-normal">
-                            {formatMetricValue(selectedResult.metrics?.[row.key], {
-                              percent: row.percent,
-                            })}
-                          </div>
-                        </div>
+                          label={row.label}
+                          rawValue={metricAsNumber(selectedResult.metrics?.[row.key])}
+                          percent={row.percent}
+                          Icon={FEATURED_METRIC_ICONS[row.key]}
+                        />
                       ))}
                     </div>
                   </div>
@@ -1083,19 +1289,6 @@ export default function Home() {
               missingMessage="original.token_ids and original.tokens are missing."
             />
             <TokenPanel
-              title="Optimal compressed"
-              tokenIds={selectedResult?.optimal?.compressed_token_ids}
-              tokens={selectedResult?.optimal?.tokens}
-              tokenizerMetadata={tokenizer}
-              expectedCount={optimalMetricCount}
-              visibleLimit={tokenReplayCounts?.optimal}
-              elapsedSeconds={tokenReplayTimes.optimal}
-              isReplaying={isReplayingTokens}
-              reconstructionText={selectedResult?.optimal?.reconstructed_text}
-              referenceText={selectedResult?.response}
-              missingMessage="optimal.compressed_token_ids and optimal.tokens are missing."
-            />
-            <TokenPanel
               title="Real / model compressed"
               tokenIds={selectedResult?.model_result?.compressed_token_ids}
               tokens={selectedResult?.model_result?.tokens}
@@ -1107,6 +1300,19 @@ export default function Home() {
               reconstructionText={selectedResult?.model_result?.reconstructed_text}
               referenceText={selectedResult?.response}
               missingMessage="model_result.compressed_token_ids and model_result.tokens are missing."
+            />
+            <TokenPanel
+              title="Optimal compressed"
+              tokenIds={selectedResult?.optimal?.compressed_token_ids}
+              tokens={selectedResult?.optimal?.tokens}
+              tokenizerMetadata={tokenizer}
+              expectedCount={optimalMetricCount}
+              visibleLimit={tokenReplayCounts?.optimal}
+              elapsedSeconds={tokenReplayTimes.optimal}
+              isReplaying={isReplayingTokens}
+              reconstructionText={selectedResult?.optimal?.reconstructed_text}
+              referenceText={selectedResult?.response}
+              missingMessage="optimal.compressed_token_ids and optimal.tokens are missing."
             />
           </div>
         </section>
